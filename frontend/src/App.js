@@ -18,6 +18,8 @@ import SOPPage from './components/SOPPage';
 import ChecklistPage from './components/ChecklistPage';
 import ProcurementPage from './components/ProcurementPage';
 import AssetPage from './components/AssetPage';
+import DashboardPage from './components/DashboardPage';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import LoginPage from './components/LoginPage';
 import Icon from './components/Icon';
 import { API, useAuth } from './context/AuthContext';
@@ -77,6 +79,7 @@ export default function App() {
   const [editHost, setEditHost] = useState(null);
   const [detailHost, setDetailHost] = useState(null);
   const [alerts, setAlerts] = useState([]);
+  const [changePasswordModal, setChangePasswordModal] = useState(false);
   const [wsStatus, setWsStatus] = useState('connecting');
   const [notifStatus, setNotifStatus] = useState('Notification' in window ? Notification.permission : 'unsupported');
   const wsRef = useRef(null);
@@ -220,9 +223,14 @@ export default function App() {
         notifStatus={notifStatus} onRequestNotif={handleRequestNotif}
         activePage={activePage} onChangePage={setActivePage}
         onLogout={logout}
+        onChangePassword={() => setChangePasswordModal(true)}
       />
 
       {activePage === 'dashboard' && (
+        <DashboardPage onNavigate={setActivePage} />
+      )}
+
+      {activePage === 'hosts' && (
         <main className="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
           <NotificationBanner status={notifStatus} onRequest={handleRequestNotif} />
           <SummaryCards stats={stats} />
@@ -279,6 +287,9 @@ export default function App() {
       {detailHost && (
         <HostDetailModal host={hosts.find(h => h.id === detailHost.id) || detailHost}
           onClose={() => setDetailHost(null)} />
+      )}
+      {changePasswordModal && (
+        <ChangePasswordModal onClose={() => setChangePasswordModal(false)} />
       )}
 
       {/* Alert Toasts */}

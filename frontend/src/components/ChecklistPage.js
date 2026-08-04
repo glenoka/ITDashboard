@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { taskSets, getPeriodKey, shiftPeriod, formatPeriodLabel } from '../data/checklistData';
+import { getPeriodKey, shiftPeriod, formatPeriodLabel } from '../data/checklistData';
 import ProjectChecklist from './ProjectChecklist';
 import Icon from './Icon';
 
@@ -15,14 +15,35 @@ const TAB_META = {
   project:    { label: 'Project',  color: 'var(--info)',   icon: 'FolderKanban' },
 };
 
+const PERIOD_OPTIONS = ['daily', 'weekly', 'monthly', 'yearly', 'occasional'];
+const fieldStyle = {
+  width: '100%', boxSizing: 'border-box', background: 'var(--input-bg)',
+  border: '1px solid var(--border)', color: 'var(--text)',
+  padding: '9px 12px', borderRadius: 10, fontSize: 12, outline: 'none', fontFamily: 'inherit',
+};
+const labelStyle = { fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', marginBottom: 6 };
+
 export default function ChecklistPage() {
   const [tab, setTab] = useState('daily');
   const [refDate, setRefDate] = useState(new Date());
-  const [completions, setCompletions] = useState({}); // taskId -> {completed, completed_by, completed_at}
+  const [completions, setCompletions] = useState({});
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
 
-  const tasks = taskSets[tab] || [];
+  // Task definitions from API
+  const [apiTasks, setApiTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
+  // Manage tasks modal
+  const [showManage, setShowManage] = useState(false);
+  const [manageTasks, setManageTasks] = useState([]);
+  const [manageLoading, setManageLoading] = useState(false);
+  const [manageForm, setManageForm] = useState({ period_type: 'daily', title: '', description: '' });
+  const [manageSaving, setManageSaving] = useState(false);
+  const [editTask, setEditTask] = useState(null);
+  const [manageError, setManageError] = useState('');
+
+  const tasks = tab === 'project' ? [] : (tab === 'occasional' ? apiTasks : apiTasks);
   const periodKey = useMemo(() => getPeriodKey(tab, refDate), [tab, refDate]);
   const periodLabel = useMemo(() => formatPeriodLabel(tab, refDate), [tab, refDate]);
   const isFuture = useMemo(() => {
@@ -30,7 +51,8 @@ export default function ChecklistPage() {
     return periodKey > todayKey;
   }, [tab, periodKey]);
 
-  const load = useCallback(() => {
+  const loadCompletions = useCallback(() => {
+    if (tab === 'project') return;
     setLoading(true);
     axios.get(`${API}/api/checklist/${tab}/${periodKey}`)
       .then(r => setCompletions((r.data && r.data.tasks) || {}))
@@ -38,14 +60,23 @@ export default function ChecklistPage() {
       .finally(() => setLoading(false));
   }, [tab, periodKey]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadTasks = useCallback(() => {
+    if (tab === 'project') return;
+    setTasksLoading(true);
+    axios.get(`${API}/api/checklist/tasks?periodType=${tab}`)
+      .then(r => setApiTasks(r.data.tasks || []))
+      .catch(() => setApiTasks([]))
+      .finally(() => setTasksLoading(false));
+  }, [tab]);
+
+  useEffect(() => { loadCompletions(); }, [loadCompletions]);
+  useEffect(() => { loadTasks(); }, [loadTasks]);
 
   function toggleTask(taskId, currentlyCompleted) {
     setSavingId(taskId);
     const newState = !currentlyCompleted;
     axios.post(`${API}/api/checklist/toggle`, {
-      taskId, periodType: tab, periodKey,
-      completed: newState,
+      taskId, periodType: tab, periodKey, completed: newState,
     }).then(() => {
       setCompletions(prev => ({
         ...prev,
@@ -54,15 +85,52 @@ export default function ChecklistPage() {
     }).catch(() => {}).finally(() => setSavingId(null));
   }
 
-  const doneCount = tasks.filter(t => completions[t.id] && completions[t.id].completed).length;
+  const doneCount = tasks.filter(t => completions[t.task_id] && completions[t.task_id].completed).length;
   const pct = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
   const meta = TAB_META[tab];
 
-  function goPeriod(dir) {
-    setRefDate(prev => shiftPeriod(tab, prev, dir));
+  function goPeriod(dir) { setRefDate(prev => shiftPeriod(tab, prev, dir)); }
+  function goToday() { setRefDate(new Date()); }
+
+  // ── Manage Tasks Modal ──────────────────────────────
+  function openManage() {
+    setEditTask(null);
+    setManageForm({ period_type: tab === 'project' ? 'daily' : tab, title: '', description: '' });
+    setManageError('');
+    loadManageTasks(tab === 'project' ? 'daily' : tab);
+    setShowManage(true);
   }
-  function goToday() {
-    setRefDate(new Date());
+
+  function loadManageTasks(pt) {
+    setManageLoading(true);
+    axios.get(`${API}/api/checklist/tasks?periodType=${pt}`)
+      .then(r => setManageTasks(r.data.tasks || []))
+      .catch(() => setManageTasks([]))
+      .finally(() => setManageLoading(false));
+  }
+
+  function saveTask(e) {
+    e.preventDefault();
+    if (!manageForm.title.trim()) { setManageError('Judul wajib diisi'); return; }
+    setManageSaving(true); setManageError('');
+    const payload = { period_type: manageForm.period_type, title: manageForm.title.trim(), description: manageForm.description.trim() };
+    const req = editTask
+      ? axios.put(`${API}/api/checklist/tasks/${editTask.id}`, payload)
+      : axios.post(`${API}/api/checklist/tasks`, payload);
+    req.then(() => {
+        setManageForm({ period_type: manageForm.period_type, title: '', description: '' });
+        setEditTask(null);
+        loadManageTasks(manageForm.period_type);
+        loadTasks();
+      })
+      .catch(err => setManageError(err?.response?.data?.error || 'Gagal menyimpan'))
+      .finally(() => setManageSaving(false));
+  }
+
+  function deleteTask(task) {
+    axios.delete(`${API}/api/checklist/tasks/${task.id}`)
+      .then(() => { loadManageTasks(manageForm.period_type); loadTasks(); })
+      .catch(() => {});
   }
 
   return (
@@ -76,12 +144,16 @@ export default function ChecklistPage() {
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>Checklist IT</span>
         {tab !== 'project' && (
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              fontSize: 11, fontWeight: 700, color: meta.color, background: 'var(--hover)',
-              border: '1px solid var(--border)', borderRadius: 999, padding: '4px 12px',
-            }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: meta.color, background: 'var(--hover)',
+              border: '1px solid var(--border)', borderRadius: 999, padding: '4px 12px' }}>
               {doneCount}/{tasks.length} selesai ({pct}%)
             </div>
+            <button onClick={openManage}
+              style={{ fontSize: 10.5, padding: '5px 12px', borderRadius: 999, background: 'transparent',
+                border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer',
+                fontFamily: 'inherit', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="Settings" size={12} /> Kelola Tugas
+            </button>
           </div>
         )}
       </div>
@@ -108,7 +180,7 @@ export default function ChecklistPage() {
         })}
       </div>
 
-      {/* Project checklist (tab khusus, task dinamis buatan user) */}
+      {/* Project checklist (tab khusus) */}
       {tab === 'project' ? (
         <ProjectChecklist />
       ) : (
@@ -118,12 +190,12 @@ export default function ChecklistPage() {
             <button onClick={() => goPeriod(-1)} style={{
               width: 30, height: 30, borderRadius: 8, background: 'var(--card)',
               border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14,
-            }}>‹</button>
+            }}>&lsaquo;</button>
             <div style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{periodLabel}</div>
             <button onClick={() => goPeriod(1)} disabled={isFuture} style={{
               width: 30, height: 30, borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)',
               color: isFuture ? 'var(--text-faint)' : 'var(--text-muted)', cursor: isFuture ? 'not-allowed' : 'pointer', fontSize: 14,
-            }}>›</button>
+            }}>&rsaquo;</button>
             <button onClick={goToday} style={{
               fontSize: 10.5, padding: '6px 12px', borderRadius: 999, background: 'transparent',
               border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit',
@@ -140,17 +212,21 @@ export default function ChecklistPage() {
           {/* Task list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 20px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {loading ? (
+              {(loading || tasksLoading) && (
                 <div style={{ textAlign: 'center', paddingTop: 40, color: 'var(--text-faint)', fontSize: 12.5 }}>Memuat...</div>
-              ) : null}
-
-              {!loading && tasks.map((task, idx) => {
-                const state = completions[task.id] || {};
+              )}
+              {!loading && !tasksLoading && tasks.length === 0 && (
+                <div style={{ textAlign: 'center', paddingTop: 40, color: 'var(--text-faint)', fontSize: 12 }}>
+                  Tidak ada tugas untuk periode ini. Klik <strong>"Kelola Tugas"</strong> untuk menambah tugas.
+                </div>
+              )}
+              {!loading && !tasksLoading && tasks.map((task, idx) => {
+                const state = completions[task.task_id] || {};
                 const done = !!state.completed;
-                const saving = savingId === task.id;
+                const saving = savingId === task.task_id;
                 return (
-                  <div key={task.id}
-                    onClick={() => { if (!saving) toggleTask(task.id, done); }}
+                  <div key={task.task_id}
+                    onClick={() => { if (!saving) toggleTask(task.task_id, done); }}
                     style={{
                       display: 'flex', gap: 12, background: done ? 'rgba(16,185,129,0.06)' : 'var(--card)',
                       border: '1px solid ' + (done ? 'rgba(16,185,129,0.35)' : 'var(--border)'), borderRadius: 12,
@@ -173,7 +249,9 @@ export default function ChecklistPage() {
                           textDecoration: done ? 'line-through' : 'none',
                         }}>{task.title}</span>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.5 }}>{task.desc}</div>
+                      {task.description && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.5 }}>{task.description}</div>
+                      )}
                       {done && state.completed_at ? (
                         <div style={{ fontSize: 9.5, color: 'var(--success)', marginTop: 5 }}>
                           ✓ Diselesaikan {new Date(state.completed_at).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
@@ -186,6 +264,111 @@ export default function ChecklistPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Manage Tasks Modal ────────────────────────── */}
+      {showManage && (
+        <div className="modal-overlay" onClick={() => setShowManage(false)}>
+          <div className="modal pop-in" style={{ maxWidth: 520, padding: 24 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Kelola Tugas Checklist</div>
+              <button onClick={() => setShowManage(false)}
+                style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--input-bg)',
+                  border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="X" size={14} />
+              </button>
+            </div>
+
+            {/* Period type selector */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+              {PERIOD_OPTIONS.map(pt => {
+                const m = TAB_META[pt];
+                const active = manageForm.period_type === pt;
+                return (
+                  <button key={pt} onClick={() => { setManageForm(f => ({ ...f, period_type: pt })); loadManageTasks(pt); }}
+                    style={{ fontSize: 10.5, padding: '5px 12px', borderRadius: 999, fontFamily: 'inherit',
+                      fontWeight: active ? 700 : 500, cursor: 'pointer',
+                      background: active ? m.color + '22' : 'transparent',
+                      color: active ? m.color : 'var(--text-muted)',
+                      border: '1px solid ' + (active ? m.color + '55' : 'var(--border)') }}>
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Add/Edit form */}
+            <form onSubmit={saveTask}
+              style={{ background: 'var(--card-2)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
+                {editTask ? 'Edit Tugas' : 'Tambah Tugas Baru'}
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={labelStyle}>Judul</div>
+                <input value={manageForm.title} onChange={e => setManageForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Nama tugas..." style={fieldStyle} />
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={labelStyle}>Deskripsi (opsional)</div>
+                <textarea value={manageForm.description} onChange={e => setManageForm(f => ({ ...f, description: e.target.value }))}
+                  rows={2} placeholder="Deskripsi singkat..." style={{ ...fieldStyle, resize: 'vertical' }} />
+              </div>
+              {manageError && (
+                <div style={{ fontSize: 11, color: 'var(--danger)', background: 'rgba(239,68,68,0.10)',
+                  border: '1px solid rgba(239,68,68,0.30)', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>{manageError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                {editTask && (
+                  <button type="button" onClick={() => { setEditTask(null); setManageForm(f => ({ ...f, title: '', description: '' })); }}
+                    style={{ fontSize: 10.5, padding: '6px 12px', borderRadius: 999, background: 'transparent',
+                      border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>Batal Edit</button>
+                )}
+                <button type="submit" disabled={manageSaving} className="btn-primary"
+                  style={{ fontSize: 10.5, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {manageSaving ? 'Menyimpan...' : <><Icon name={editTask ? 'Save' : 'Plus'} size={12} /> {editTask ? 'Update' : 'Tambah'}</>}
+                </button>
+              </div>
+            </form>
+
+            {/* Task list */}
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              {manageLoading ? (
+                <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-faint)', fontSize: 11.5 }}>Memuat...</div>
+              ) : manageTasks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-faint)', fontSize: 11.5 }}>Belum ada tugas</div>
+              ) : (
+                manageTasks.map(task => (
+                  <div key={task.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                      borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-faint)', flexShrink: 0, width: 36 }}>{task.task_id}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
+                      {task.description && <div style={{ fontSize: 10, color: 'var(--text-faint)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.description}</div>}
+                    </div>
+                    <button onClick={() => {
+                      setEditTask(task);
+                      setManageForm(f => ({ ...f, title: task.title, description: task.description || '' }));
+                    }}
+                      style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--hover)',
+                        border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon name="Pencil" size={11} />
+                    </button>
+                    <button onClick={() => { if (window.confirm(`Hapus tugas "${task.title}"?`)) deleteTask(task); }}
+                      style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--hover)',
+                        border: '1px solid var(--border)', color: 'var(--danger)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon name="Trash2" size={11} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

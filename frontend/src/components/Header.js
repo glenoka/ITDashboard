@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import Icon from './Icon';
 
-export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequestNotif, activePage, onChangePage, onLogout }) {
+export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onChangePassword }) {
   const [time, setTime] = useState(new Date());
   const { theme, toggleTheme } = useTheme();
   useEffect(() => {
@@ -15,6 +15,8 @@ export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequ
   const notifColor = notifStatus === 'granted' ? 'var(--success)' : notifStatus === 'denied' ? 'var(--danger)' : 'var(--warning)';
 
   const PAGE_TITLES = {
+    dashboard: 'Ringkasan Operasional',
+    hosts: 'Host Connection',
     cctv: 'CCTV Monitoring',
     unifi: 'UniFi Controller',
     ruijie: 'Ruijie Cloud',
@@ -26,7 +28,8 @@ export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequ
   };
 
   const TABS = [
-    { id: 'dashboard', icon: 'LayoutDashboard', label: 'Dashboard' },
+    { id: 'dashboard', icon: 'Gauge', label: 'Dashboard' },
+    { id: 'hosts', icon: 'Monitor', label: 'Host Connection' },
     { id: 'cctv', icon: 'Video', label: 'CCTV' },
     { id: 'unifi', icon: 'Network', label: 'UniFi' },
     { id: 'ruijie', icon: 'Router', label: 'Ruijie' },
@@ -60,8 +63,8 @@ export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequ
           </div>
         </div>
 
-        {/* Center stats — only on dashboard */}
-        {activePage === 'dashboard' && (
+        {/* Center stats — only on hosts */}
+        {activePage === 'hosts' && (
           <div className="hidden md:flex items-center gap-4">
             <StatPill label="Total" value={stats.total} color="var(--text-muted)" />
             <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
@@ -99,7 +102,11 @@ export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequ
             style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 9px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <Icon name={theme === 'dark' ? 'Sun' : 'Moon'} size={14} />
           </button>
-          {activePage === 'dashboard' && (
+          <button onClick={onChangePassword} title="Ubah password"
+            style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 9px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <Icon name="Settings" size={14} />
+          </button>
+          {activePage === 'hosts' && (
             <button className="btn-primary flex items-center gap-1.5" onClick={onAddHost} style={{ fontSize: 11.5, padding: '6px 14px' }}>
               <Icon name="Plus" size={13} /> Host
             </button>

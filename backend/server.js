@@ -256,6 +256,24 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/check', (req, res) => res.json({ ok: true }));
 
+// Ubah password admin
+app.post('/api/auth/change-password', (req, res) => {
+  const { old_password, new_password } = req.body || {};
+  if (!old_password || !new_password) {
+    return res.status(400).json({ ok: false, error: 'Password lama dan password baru wajib diisi' });
+  }
+  if (String(new_password).length < 4) {
+    return res.status(400).json({ ok: false, error: 'Password baru minimal 4 karakter' });
+  }
+  if (!verifyPassword(String(old_password))) {
+    return res.status(400).json({ ok: false, error: 'Password lama salah' });
+  }
+  const salt = makeSalt();
+  const hash = hashPassword(String(new_password), salt);
+  dbRun('UPDATE app_settings SET admin_password_hash=?, admin_password_salt=? WHERE id=1', [hash, salt]);
+  res.json({ ok: true });
+});
+
 // ── REST API ──────────────────────────────────────────────────────────────────
 
 app.get('/api/hosts', (req, res) => {
@@ -507,8 +525,10 @@ initDB().then(() => {
   initUnifiTable();
   initRuijieTable();
   initChecklistTable();
+  initChecklistTasksTable();
   initProjectTasksTable();
   initProcurementTable();
+  initSopTable();
   server.listen(PORT, () => {
     console.log(`\n  DASHBOARD IT - System Monitoring`);
     console.log(`  http://localhost:${PORT}`);
@@ -1606,6 +1626,103 @@ function initChecklistTable() {
   } catch (e) { console.error('[Checklist] initChecklistTable error:', e.message); }
 }
 
+// ── DEFINISI TUGAS CHECKLIST (dinamis, editable via UI) ────────────────────────
+// Seeded dari checklist_seed.json agar history completion lama tetap tersambung
+// (task_id lama dipertahankan, mis. 'd-01').
+
+function initChecklistTasksTable() {
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS checklist_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT UNIQUE NOT NULL,
+      period_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      desc TEXT DEFAULT '',
+      sort INTEGER DEFAULT 0
+    )`);
+    const count = dbGet('SELECT COUNT(*) as c FROM checklist_tasks');
+    if ((count?.c || 0) === 0) {
+      const seedPath = path.join(__dirname, 'checklist_seed.json');
+      if (fs.existsSync(seedPath)) {
+        const list = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+        list.forEach(t => {
+          db.run('INSERT INTO checklist_tasks (task_id, period_type, title, desc, sort) VALUES (?,?,?,?,?)',
+            [t.task_id, t.period_type, t.title, t.desc || '', t.sort || 0]);
+        });
+        saveDB();
+      }
+    }
+  } catch (e) { console.error('[Checklist] initChecklistTasksTable error:', e.message); }
+}
+
+function checklistTaskFromRow(r) {
+  if (!r) return null;
+  return { id: r.id, task_id: r.task_id, period_type: r.period_type, title: r.title, desc: r.desc, sort: r.sort };
+}
+
+// GET /api/checklist/tasks?periodType=daily — daftar definisi tugas
+app.get('/api/checklist/tasks', (req, res) => {
+  try {
+    const { periodType } = req.query;
+    const where = periodType ? 'WHERE period_type = ?' : '';
+    const params = periodType ? [periodType] : [];
+    const rows = dbAll(`SELECT * FROM checklist_tasks ${where} ORDER BY sort ASC, id ASC`, params);
+    res.json({ tasks: rows.map(checklistTaskFromRow) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/checklist/tasks — tambah definisi tugas baru
+app.post('/api/checklist/tasks', (req, res) => {
+  const { periodType, title, desc } = req.body || {};
+  if (!periodType || !title || !String(title).trim()) {
+    return res.status(400).json({ ok: false, error: 'Tipe periode dan judul wajib diisi' });
+  }
+  try {
+    const maxSort = dbGet('SELECT MAX(sort) as m FROM checklist_tasks WHERE period_type = ?', [periodType])?.m || 0;
+    const id = dbRun('INSERT INTO checklist_tasks (task_id, period_type, title, desc, sort) VALUES (?,?,?,?,?)',
+      ['', periodType, String(title).trim(), String(desc || '').trim(), maxSort + 1]);
+    const taskId = 't' + id;
+    dbRun('UPDATE checklist_tasks SET task_id=? WHERE id=?', [taskId, id]);
+    const task = checklistTaskFromRow(dbGet('SELECT * FROM checklist_tasks WHERE id = ?', [id]));
+    broadcast({ type: 'checklist_task_update', periodType });
+    res.json({ ok: true, task });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// PUT /api/checklist/tasks/:id — edit definisi tugas
+app.put('/api/checklist/tasks/:id', (req, res) => {
+  const { title, desc } = req.body || {};
+  if (!title || !String(title).trim()) {
+    return res.status(400).json({ ok: false, error: 'Judul wajib diisi' });
+  }
+  try {
+    dbRun('UPDATE checklist_tasks SET title=?, desc=? WHERE id=?',
+      [String(title).trim(), String(desc || '').trim(), req.params.id]);
+    const task = checklistTaskFromRow(dbGet('SELECT * FROM checklist_tasks WHERE id = ?', [req.params.id]));
+    if (!task) return res.status(404).json({ error: 'Tugas tidak ditemukan' });
+    broadcast({ type: 'checklist_task_update', periodType: task.period_type });
+    res.json({ ok: true, task });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// DELETE /api/checklist/tasks/:id — hapus definisi tugas
+app.delete('/api/checklist/tasks/:id', (req, res) => {
+  try {
+    const task = dbGet('SELECT * FROM checklist_tasks WHERE id = ?', [req.params.id]);
+    dbRun('DELETE FROM checklist_tasks WHERE id = ?', [req.params.id]);
+    broadcast({ type: 'checklist_task_update', periodType: task?.period_type });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // GET /api/checklist/:periodType/:periodKey — completion state for one period
 app.get('/api/checklist/:periodType/:periodKey', (req, res) => {
   try {
@@ -1939,4 +2056,130 @@ app.delete('/api/assets/:id', (req, res) => {
   dbRun('DELETE FROM it_assets WHERE id = ?', [req.params.id]);
   broadcast({ type: 'asset_deleted', assetId: parseInt(req.params.id) });
   res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// SOP & POLICY — dokumen dinamis (seeded dari sop_seed.json, editable via UI)
+// ══════════════════════════════════════════════════════════════════════════
+
+function initSopTable() {
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS sop_docs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      no TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT DEFAULT 'manajemen',
+      kebijakan TEXT DEFAULT '',
+      prosedur TEXT DEFAULT '[]',
+      sort INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    const count = dbGet('SELECT COUNT(*) as c FROM sop_docs');
+    if ((count?.c || 0) === 0) {
+      const seedPath = path.join(__dirname, 'sop_seed.json');
+      if (fs.existsSync(seedPath)) {
+        const list = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+        list.forEach((s, i) => {
+          db.run('INSERT INTO sop_docs (no, title, category, kebijakan, prosedur, sort) VALUES (?,?,?,?,?,?)',
+            [s.no, s.title, s.category || 'manajemen', s.kebijakan || '', JSON.stringify(s.prosedur || []), i]);
+        });
+        saveDB();
+      }
+    }
+  } catch (e) { console.error('[SOP] initSopTable error:', e.message); }
+}
+
+function sopFromRow(r) {
+  if (!r) return null;
+  let prosedur = [];
+  try { prosedur = JSON.parse(r.prosedur || '[]'); } catch (e) { prosedur = []; }
+  if (!Array.isArray(prosedur)) prosedur = [];
+  return {
+    id: r.id, no: r.no, title: r.title, category: r.category,
+    kebijakan: r.kebijakan, prosedur, sort: r.sort,
+    created_at: r.created_at, updated_at: r.updated_at,
+  };
+}
+
+function nextSopNo() {
+  const rows = dbAll("SELECT no FROM sop_docs WHERE no LIKE 'IT/%'");
+  let max = 0;
+  rows.forEach(r => {
+    const m = String(r.no).match(/IT\/(\d+)/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return `IT/${String(max + 1).padStart(3, '0')}`;
+}
+
+// GET /api/sop?search=&category=
+app.get('/api/sop', (req, res) => {
+  try {
+    const { search, category } = req.query;
+    let where = [];
+    let params = [];
+    if (category && category !== 'all') { where.push('category = ?'); params.push(category); }
+    if (search) {
+      where.push('(title LIKE ? OR no LIKE ? OR kebijakan LIKE ? OR prosedur LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const rows = dbAll(`SELECT * FROM sop_docs ${whereClause} ORDER BY sort ASC, id ASC`, params);
+    res.json({ docs: rows.map(sopFromRow), total: rows.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/sop — tambah SOP baru
+app.post('/api/sop', (req, res) => {
+  const { no, title, category, kebijakan, prosedur } = req.body || {};
+  if (!title || !String(title).trim()) {
+    return res.status(400).json({ ok: false, error: 'Judul wajib diisi' });
+  }
+  try {
+    const maxSort = dbGet('SELECT MAX(sort) as m FROM sop_docs')?.m || 0;
+    const id = dbRun(
+      'INSERT INTO sop_docs (no, title, category, kebijakan, prosedur, sort) VALUES (?,?,?,?,?,?)',
+      [no || nextSopNo(), String(title).trim(), category || 'manajemen', kebijakan || '',
+       JSON.stringify(Array.isArray(prosedur) ? prosedur : []), maxSort + 1]
+    );
+    const doc = sopFromRow(dbGet('SELECT * FROM sop_docs WHERE id = ?', [id]));
+    broadcast({ type: 'sop_update' });
+    res.json({ ok: true, doc });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// PUT /api/sop/:id — edit SOP
+app.put('/api/sop/:id', (req, res) => {
+  const { no, title, category, kebijakan, prosedur } = req.body || {};
+  if (!title || !String(title).trim()) {
+    return res.status(400).json({ ok: false, error: 'Judul wajib diisi' });
+  }
+  try {
+    dbRun(
+      'UPDATE sop_docs SET no=?, title=?, category=?, kebijakan=?, prosedur=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+      [no || nextSopNo(), String(title).trim(), category || 'manajemen', kebijakan || '',
+       JSON.stringify(Array.isArray(prosedur) ? prosedur : []), req.params.id]
+    );
+    const doc = sopFromRow(dbGet('SELECT * FROM sop_docs WHERE id = ?', [req.params.id]));
+    if (!doc) return res.status(404).json({ error: 'SOP tidak ditemukan' });
+    broadcast({ type: 'sop_update' });
+    res.json({ ok: true, doc });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// DELETE /api/sop/:id — hapus SOP
+app.delete('/api/sop/:id', (req, res) => {
+  try {
+    dbRun('DELETE FROM sop_docs WHERE id = ?', [req.params.id]);
+    broadcast({ type: 'sop_update' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
