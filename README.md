@@ -1,6 +1,6 @@
 # Dashboard IT — System Monitoring & Asset
 
-Aplikasi monitoring IT terpusat untuk tim IT Support: monitoring host, CCTV, UniFi, Ruijie, history downtime, SOP, checklist IT, dan manajemen market list (PR/Order → Aset IT).
+Aplikasi monitoring IT terpusat untuk tim IT Support: dashboard operasional, monitoring host, CCTV, UniFi, Ruijie, history downtime, SOP & policy, checklist IT, dan manajemen market list (PR/Order → Aset IT).
 
 ## Fitur
 
@@ -11,12 +11,15 @@ Aplikasi monitoring IT terpusat untuk tim IT Support: monitoring host, CCTV, Uni
 - ✅ Integrasi UniFi Controller (status perangkat, klien)
 - ✅ Integrasi Ruijie Cloud
 - ✅ History downtime terpusat (host / CCTV / UniFi / Ruijie), filter & export Markdown
-- ✅ SOP & Policy IT + Checklist IT (daily/weekly/monthly)
+- ✅ Dashboard operasional: ringkasan down list (Jaringan/CCTV/UniFi/Ruijie), PR lama > 2 minggu, checklist project
+- ✅ SOP & Policy IT — dokumen dinamis, tambah/edit/hapus via UI (tersimpan di database)
+- ✅ Checklist IT (harian/mingguan/bulanan/tahunan/event) — kelola definisi tugas via UI
+- ✅ Checklist project (task dinamis buatan user, quick-add dari dashboard)
 - ✅ Market List IT: PR/Order → tombol "TIBA → ASET" otomatis buat aset per qty
 - ✅ Inventaris Aset IT (nama barang, brand, pembelian, lokasi)
 - ✅ Export Markdown untuk daftar order/aset/history
-- ✅ Login single-admin (password env `ADMIN_PASSWORD`, default `admin`)
-- ✅ Dark theme, responsive
+- ✅ Login single-admin (password env `ADMIN_PASSWORD`, default `admin`) + ubah password via UI
+- ✅ Dark/light theme, responsive
 
 ## Stack
 
@@ -79,6 +82,7 @@ REACT_APP_API_URL=http://your-server:3001   # Backend URL (untuk production)
 
 - Halaman login muncul sebelum dashboard terbuka.
 - Password default: `admin` (bisa diubah via env `ADMIN_PASSWORD`; dibuat di tabel `app_settings` saat first-run).
+- Password bisa diubah dari dalam aplikasi lewat tombol **Settings** (ikon ⚙ di header) → *Ubah Password*.
 - Token tersimpan di `localStorage` (key `dashboard_it_token`), TTL 24 jam.
 - Semua endpoint `/api/*` dilindungi `requireAuth` (header `Authorization: Bearer <token>` atau query `?token=` untuk `<img>`/snapshot).
 
@@ -115,14 +119,15 @@ server {
 
 | Tab | Deskripsi |
 |-----|-----------|
-| DASHBOARD | Ringkasan status host, charts, bandwidth, sistem |
+| DASHBOARD | Ringkasan operasional: checklist project, down list semua kategori, PR lama |
+| HOST CONNECTION | Status host real-time, charts, bandwidth, sistem, kelola host |
 | CCTV | Grid kamera, snapshot, live stream |
 | UNIFI | Perangkat UniFi Controller (status/klien/sync) |
 | RUIJIE | Perangkat Ruijie Cloud (AppID + Key) |
 | PR/ORDER | Market list IT — barang di-PR/di-order belum datang |
 | ASET IT | Inventaris aset (auto-create saat order "TIBA") |
-| SOP | SOP & policy IT |
-| CHECKLIST | Checklist harian/mingguan/bulanan |
+| SOP | SOP & policy IT — dokumen dinamis, editable via UI |
+| CHECKLIST | Checklist harian/mingguan/bulanan/tahunan/event + kelola tugas + project |
 | HISTORY | History downtime terpusat, filter & export |
 
 ## Data Retention
