@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import Icon from './Icon';
 
-export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onChangePassword }) {
+export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onChangePassword }) {
   const [time, setTime] = useState(new Date());
   const { theme, toggleTheme } = useTheme();
   useEffect(() => {
@@ -106,11 +106,6 @@ export default function Header({ wsStatus, stats, onAddHost, notifStatus, onRequ
             style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 9px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <Icon name="Settings" size={14} />
           </button>
-          {activePage === 'hosts' && (
-            <button className="btn-primary flex items-center gap-1.5" onClick={onAddHost} style={{ fontSize: 11.5, padding: '6px 14px' }}>
-              <Icon name="Plus" size={13} /> Host
-            </button>
-          )}
           <button onClick={onLogout} title="Keluar"
             style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Icon name="LogOut" size={13} /> Logout

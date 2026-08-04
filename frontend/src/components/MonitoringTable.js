@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 const INTERVALS = { 10: '10s', 30: '30s', 60: '1m', 180: '3m', 600: '10m' };
 
-export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail }) {
+export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onAdd }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -25,6 +25,13 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Add host */}
+          {onAdd && (
+            <button className="btn-primary flex items-center gap-1.5" onClick={onAdd}
+              style={{ fontSize: 11, padding: '5px 12px' }}>
+              <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> Host
+            </button>
+          )}
           {/* Search */}
           <input
             className="input"

@@ -85,11 +85,26 @@ export default function ProcurementPage({ wsRef }) {
       const res = await axios.post(`${API}/api/orders/${id}/arrive`);
       load();
       setExportData({
+        title: 'Barang Tiba',
+        markdown: `*Barang sudah ditandai TIBA* (${new Date().toLocaleDateString('id-ID')})\n\n- ${res.data.order.item_name} (${res.data.order.brand || '-'}) — ${res.data.order.no_pr || '-'}\n\nBelum dicatat sebagai Aset. Gunakan tombol **→ Aset** apabila barang ini perlu dijadikan aset inventaris.`,
+      });
+    } catch (e) {
+      alert('Gagal menandai tiba: ' + (e?.response?.data?.error || ''));
+    }
+    setArrivingId(null);
+  };
+
+  const createAssets = async (id) => {
+    setArrivingId(id);
+    try {
+      const res = await axios.post(`${API}/api/orders/${id}/create-assets`);
+      load();
+      setExportData({
         title: 'Barang Tiba — Jadi Aset',
         markdown: `*Barang tiba & sudah dicatat sebagai Aset IT (${res.data.assets.length} unit)*\n\n${res.data.assets.map(a => `- ${a.asset_code} — ${a.item_name} (${a.brand || '-'})`).join('\n')}`,
       });
     } catch (e) {
-      alert('Gagal menandai tiba: ' + (e?.response?.data?.error || ''));
+      alert('Gagal membuat aset: ' + (e?.response?.data?.error || ''));
     }
     setArrivingId(null);
   };
@@ -176,12 +191,26 @@ export default function ProcurementPage({ wsRef }) {
                   <td style={{ fontFamily: 'var(--mono)' }}>{fmtID(o.est_arrival)}</td>
                   <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       {o.status !== 'arrived' && o.status !== 'cancelled' && (
                         <button onClick={() => arrive(o.id)} disabled={arrivingId === o.id}
+                          title="Tandai barang tiba (tidak otomatis jadi aset)"
                           style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
-                          {arrivingId === o.id ? '...' : 'Tiba → Aset'}
+                          {arrivingId === o.id ? '...' : 'Tiba'}
                         </button>
+                      )}
+                      {o.status === 'arrived' && !o.asset_count && (
+                        <button onClick={() => createAssets(o.id)} disabled={arrivingId === o.id}
+                          title="Jadikan aset inventaris (per qty)"
+                          style={{ background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', border: '1px solid rgba(99,102,241,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
+                          {arrivingId === o.id ? '...' : '→ Aset'}
+                        </button>
+                      )}
+                      {o.status === 'arrived' && !!o.asset_count && (
+                        <span title="Aset sudah dibuat dari order ini"
+                          style={{ background: 'rgba(99,102,241,0.10)', color: 'var(--accent)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                          ✓ {o.asset_count} Aset
+                        </span>
                       )}
                       <button onClick={() => openEdit(o)} style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
                       <button onClick={() => setConfirm({ id: o.id, name: o.item_name })} style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Hapus</button>

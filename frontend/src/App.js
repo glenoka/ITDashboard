@@ -219,7 +219,6 @@ export default function App() {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <Header
         wsStatus={wsStatus} stats={stats}
-        onAddHost={() => setShowAddModal(true)}
         notifStatus={notifStatus} onRequestNotif={handleRequestNotif}
         activePage={activePage} onChangePage={setActivePage}
         onLogout={logout}
@@ -236,7 +235,8 @@ export default function App() {
           <SummaryCards stats={stats} />
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2">
-              <MonitoringTable hosts={hosts} onEdit={setEditHost} onDelete={handleDeleteHost} onDetail={setDetailHost} />
+              <MonitoringTable hosts={hosts} onEdit={setEditHost} onDelete={handleDeleteHost} onDetail={setDetailHost}
+                onAdd={() => setShowAddModal(true)} />
             </div>
             <div className="space-y-6">
               <SystemPanel system={system} />

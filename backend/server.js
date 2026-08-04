@@ -1939,7 +1939,8 @@ app.get('/api/orders', (req, res) => {
   }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const rows = dbAll(
-    `SELECT * FROM it_orders ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+    `SELECT o.*, (SELECT COUNT(*) FROM it_assets a WHERE a.order_id = o.id) AS asset_count
+     FROM it_orders o ${whereClause} ORDER BY o.id DESC LIMIT ? OFFSET ?`,
     [...params, parseInt(limit) || 200, parseInt(offset) || 0]
   );
   res.json({ orders: rows, total: rows.length });
@@ -1977,10 +1978,22 @@ app.delete('/api/orders/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/orders/:id/arrive — barang tiba -> jadi Aset IT (otomatis)
+// POST /api/orders/:id/arrive — barang tiba (hanya tandai status, TIDAK otomatis jadi Aset)
 app.post('/api/orders/:id/arrive', (req, res) => {
   const order = dbGet('SELECT * FROM it_orders WHERE id = ?', [req.params.id]);
   if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
+  dbRun("UPDATE it_orders SET status='arrived' WHERE id=?", [order.id]);
+  const updatedOrder = dbGet('SELECT * FROM it_orders WHERE id = ?', [order.id]);
+  broadcast({ type: 'order_updated', order: updatedOrder });
+  res.json({ ok: true, order: updatedOrder, assets: [] });
+});
+
+// POST /api/orders/:id/create-assets — barang yang sudah tiba DIJADIKAN Aset IT (manual, per kebutuhan)
+app.post('/api/orders/:id/create-assets', (req, res) => {
+  const order = dbGet('SELECT * FROM it_orders WHERE id = ?', [req.params.id]);
+  if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
+  const existing = dbGet('SELECT COUNT(*) as c FROM it_assets WHERE order_id = ?', [order.id]);
+  if ((existing?.c || 0) > 0) return res.status(400).json({ error: 'Aset untuk order ini sudah pernah dibuat' });
   dbRun("UPDATE it_orders SET status='arrived' WHERE id=?", [order.id]);
   const created = [];
   const qty = Math.max(1, parseInt(order.qty) || 1);
