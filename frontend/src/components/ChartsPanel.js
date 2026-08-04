@@ -5,19 +5,33 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
   LineElement, Title, Tooltip, Legend, Filler, ArcElement
 } from 'chart.js';
+import { useTheme } from '../context/ThemeContext';
+import Icon from './Icon';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler, ArcElement);
 
 const API = process.env.REACT_APP_API_URL || '';
 
-ChartJS.defaults.color = '#64748B';
-ChartJS.defaults.font.family = 'JetBrains Mono';
-ChartJS.defaults.font.size = 10;
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#64748B';
+}
 
 export default function ChartsPanel({ hosts, alerts }) {
+  const { theme } = useTheme();
   const [selectedHostId, setSelectedHostId] = useState(null);
   const [latencyHistory, setLatencyHistory] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const accent = cssVar('--accent');
+  const danger = cssVar('--danger');
+  const success = cssVar('--success');
+  const muted = cssVar('--text-muted');
+  const faint = cssVar('--text-faint');
+  const text = cssVar('--text');
+  const border = cssVar('--border');
+  const card2 = cssVar('--card-2');
+  const info = cssVar('--info');
+  const warning = cssVar('--warning');
 
   // Set default selected host
   useEffect(() => {
@@ -53,11 +67,11 @@ export default function ChartsPanel({ hosts, alerts }) {
   const unknownCount = hosts.filter(h => !h.status || h.status === 'UNKNOWN').length;
 
   const doughnutData = {
-    labels: ['UP', 'DOWN', 'UNKNOWN'],
+    labels: ['Up', 'Down', 'Unknown'],
     datasets: [{
       data: [upCount || 0, downCount || 0, unknownCount || 0],
-      backgroundColor: ['#22C55E33', '#EF444433', '#64748B33'],
-      borderColor: ['#22C55E', '#EF4444', '#64748B'],
+      backgroundColor: [success + '33', danger + '33', muted + '33'],
+      borderColor: [success, danger, muted],
       borderWidth: 2,
     }]
   };
@@ -76,13 +90,13 @@ export default function ChartsPanel({ hosts, alerts }) {
     datasets: [{
       label: 'Latency (ms)',
       data: latencyValues,
-      borderColor: '#22C55E',
-      backgroundColor: 'rgba(34, 197, 94, 0.08)',
+      borderColor: accent,
+      backgroundColor: accent + '0A',
       borderWidth: 1.5,
       pointRadius: 0,
       pointHoverRadius: 4,
       fill: true,
-      tension: 0.4,
+      tension: 0.35,
     }]
   };
 
@@ -94,25 +108,25 @@ export default function ChartsPanel({ hosts, alerts }) {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#1E293B',
-        borderColor: '#334155',
+        backgroundColor: card2,
+        borderColor: border,
         borderWidth: 1,
-        titleColor: '#64748B',
-        bodyColor: '#22C55E',
+        titleColor: muted,
+        bodyColor: text,
         padding: 10,
         callbacks: { label: ctx => ` ${ctx.parsed.y} ms` }
       }
     },
     scales: {
       x: {
-        grid: { color: '#1a2744' },
-        ticks: { maxTicksLimit: 8, color: '#475569', font: { size: 10 } },
-        border: { color: '#334155' }
+        grid: { color: 'transparent' },
+        ticks: { maxTicksLimit: 8, color: faint, font: { size: 10 } },
+        border: { color: border }
       },
       y: {
-        grid: { color: '#1a2744' },
-        ticks: { color: '#475569', callback: v => `${v}ms`, font: { size: 10 } },
-        border: { color: '#334155' },
+        grid: { color: border },
+        ticks: { color: faint, callback: v => `${v}ms`, font: { size: 10 } },
+        border: { color: border },
         beginAtZero: true,
       }
     }
@@ -125,9 +139,9 @@ export default function ChartsPanel({ hosts, alerts }) {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: { padding: 12, usePointStyle: true, pointStyleWidth: 8, color: '#64748B', font: { size: 11 } }
+        labels: { padding: 12, usePointStyle: true, pointStyleWidth: 8, color: muted, font: { size: 11 } }
       },
-      tooltip: { backgroundColor: '#1E293B', borderColor: '#334155', borderWidth: 1 }
+      tooltip: { backgroundColor: card2, borderColor: border, borderWidth: 1, titleColor: text, bodyColor: text }
     }
   };
 
@@ -139,16 +153,17 @@ export default function ChartsPanel({ hosts, alerts }) {
       <div className="card xl:col-span-2 p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.1em' }}>LATENCY HISTORY</span>
-            <span style={{ fontSize: 10, color: '#475569', background: '#334155', padding: '2px 6px', borderRadius: 3 }}>1h</span>
-            {loading && <span style={{ fontSize: 10, color: '#F59E0B' }}>loading...</span>}
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Riwayat Latency</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 999 }}>1 jam</span>
+            {loading && <span style={{ fontSize: 10, color: 'var(--warning)' }}>memuat...</span>}
             {!loading && validHistory.length > 0 && (
-              <span style={{ fontSize: 10, color: '#475569' }}>{validHistory.length} data points</span>
+              <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{validHistory.length} titik data</span>
             )}
           </div>
           {hosts.length > 0 && (
             <select
-              style={{ background: '#0F172A', border: '1px solid #334155', color: '#94A3B8', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}
+              className="input"
+              style={{ width: 'auto', padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}
               value={selectedHostId || ''}
               onChange={e => {
                 setLatencyHistory([]);
@@ -164,20 +179,20 @@ export default function ChartsPanel({ hosts, alerts }) {
 
         {/* Selected host info */}
         {selectedHost && (
-          <div className="flex items-center gap-4 mb-3 px-1">
-            <span style={{ fontSize: 10, color: '#475569' }}>{selectedHost.target}</span>
+          <div className="flex items-center gap-4 mb-3 px-1 flex-wrap">
+            <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>{selectedHost.target}</span>
             {selectedHost.status && (
               <span style={{
-                fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
-                background: selectedHost.status === 'UP' ? '#22C55E22' : '#EF444422',
-                color: selectedHost.status === 'UP' ? '#22C55E' : '#EF4444',
+                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                background: selectedHost.status === 'UP' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                color: selectedHost.status === 'UP' ? 'var(--success)' : 'var(--danger)',
               }}>
-                {selectedHost.status}
+                {selectedHost.status === 'UP' ? 'Up' : 'Down'}
               </span>
             )}
             {selectedHost.latency && (
-              <span style={{ fontSize: 10, color: '#F59E0B' }}>
-                Current: {Math.round(selectedHost.latency)}ms
+              <span style={{ fontSize: 10, color: 'var(--warning)' }}>
+                Saat ini: {Math.round(selectedHost.latency)}ms
               </span>
             )}
           </div>
@@ -188,12 +203,12 @@ export default function ChartsPanel({ hosts, alerts }) {
             <Line data={lineData} options={lineOptions} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>📡</span>
-              <span style={{ color: '#475569', fontSize: 12 }}>
-                {loading ? 'Loading data...' : hosts.length === 0 ? 'Tambahkan host untuk monitoring' : 'Mengumpulkan data latency...'}
+              <Icon name="RadioTower" size={22} color="var(--text-faint)" />
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                {loading ? 'Memuat data...' : hosts.length === 0 ? 'Tambahkan host untuk monitoring' : 'Mengumpulkan data latency...'}
               </span>
               {!loading && hosts.length > 0 && (
-                <span style={{ color: '#334155', fontSize: 11 }}>
+                <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>
                   Data muncul setelah beberapa siklus monitoring
                 </span>
               )}
@@ -205,7 +220,7 @@ export default function ChartsPanel({ hosts, alerts }) {
       {/* Host Status Doughnut */}
       <div className="card p-4">
         <div className="mb-4">
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.1em' }}>HOST STATUS</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Status Host</span>
         </div>
         <div style={{ height: 200, position: 'relative' }}>
           <Doughnut data={doughnutData} options={doughnutOptions} />
@@ -213,10 +228,10 @@ export default function ChartsPanel({ hosts, alerts }) {
             position: 'absolute', top: '38%', left: '50%', transform: 'translate(-50%, -50%)',
             textAlign: 'center', pointerEvents: 'none'
           }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: '#22C55E', fontFamily: 'Syne, sans-serif', lineHeight: 1 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: text, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
               {hosts.length > 0 ? Math.round((upCount / hosts.length) * 100) : 0}%
             </div>
-            <div style={{ fontSize: 9, color: '#64748B', letterSpacing: '0.1em' }}>UPTIME</div>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginTop: 2 }}>UPTIME</div>
           </div>
         </div>
       </div>

@@ -20,15 +20,15 @@ export default function MarkdownExportModal({ title, markdown, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 640, padding: 24 }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0' }}>{title}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: 16 }}>✕</button>
+      <div className="modal pop-in" style={{ maxWidth: 640, padding: 24 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+          <button onClick={onClose} title="Tutup" style={{ background: 'var(--hover)', border: '1px solid var(--border)', borderRadius: 8, width: 30, height: 30, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
-        <pre style={{ background: '#0F172A', border: '1px solid #334155', borderRadius: 8, padding: 12, fontSize: 11, color: '#94A3B8', maxHeight: 360, overflow: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'JetBrains Mono, monospace', marginBottom: 12 }}>{markdown}</pre>
+        <pre style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, fontSize: 11.5, lineHeight: 1.6, color: 'var(--text-muted)', maxHeight: 360, overflow: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'var(--mono)', marginBottom: 14 }}>{markdown}</pre>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={copy} style={{ fontSize: 12 }}>{copied ? '✓ TERSALIN' : 'SALIN MARKDOWN'}</button>
-          <button className="btn-ghost" onClick={onClose} style={{ fontSize: 12 }}>TUTUP</button>
+          <button className="btn-primary" onClick={copy} style={{ fontSize: 12 }}>{copied ? '✓ Tersalin' : 'Salin Markdown'}</button>
+          <button className="btn-ghost" onClick={onClose} style={{ fontSize: 12 }}>Tutup</button>
         </div>
       </div>
     </div>

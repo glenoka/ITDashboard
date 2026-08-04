@@ -7,10 +7,10 @@ import { toMarkdownTable, fmtID, rupiah } from '../utils/format';
 const API = process.env.REACT_APP_API_URL || '';
 
 const STATUS_META = {
-  pr:       { label: 'PENDING', color: '#F59E0B', bg: '#F59E0B22' },
-  ordered:  { label: 'ORDERED', color: '#38BDF8', bg: '#38BDF822' },
-  arrived:  { label: 'TIBA',    color: '#22C55E', bg: '#22C55E22' },
-  cancelled:{ label: 'BATAL',   color: '#64748B', bg: '#64748B22' },
+  pr:       { label: 'Pending', color: 'var(--warning)', bg: 'rgba(251,191,36,0.12)' },
+  ordered:  { label: 'Dipesan', color: 'var(--info)', bg: 'rgba(59,130,246,0.12)' },
+  arrived:  { label: 'Tiba',    color: 'var(--success)', bg: 'rgba(16,185,129,0.12)' },
+  cancelled:{ label: 'Batal',   color: 'var(--text-muted)', bg: 'rgba(100,116,139,0.15)' },
 };
 
 const EMPTY_FORM = { id: null, no_pr: '', item_name: '', brand: '', qty: 1, unit: '', vendor: '', price: 0, order_date: '', est_arrival: '', status: 'pr', notes: '' };
@@ -85,7 +85,7 @@ export default function ProcurementPage({ wsRef }) {
       const res = await axios.post(`${API}/api/orders/${id}/arrive`);
       load();
       setExportData({
-        title: '✅ Barang Tiba → Jadi Aset',
+        title: 'Barang Tiba — Jadi Aset',
         markdown: `*Barang tiba & sudah dicatat sebagai Aset IT (${res.data.assets.length} unit)*\n\n${res.data.assets.map(a => `- ${a.asset_code} — ${a.item_name} (${a.brand || '-'})`).join('\n')}`,
       });
     } catch (e) {
@@ -112,7 +112,7 @@ export default function ProcurementPage({ wsRef }) {
 
   const field = (label, key, type = 'text', placeholder = '', span = false) => (
     <div style={span ? { gridColumn: '1 / -1' } : {}}>
-      <label style={{ fontSize: 10, color: '#64748B', fontWeight: 700, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>{label}</label>
+      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>{label}</label>
       <input
         type={type}
         className="input"
@@ -128,21 +128,21 @@ export default function ProcurementPage({ wsRef }) {
       {/* Toolbar */}
       <div className="card p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          {[{ id: 'all', label: 'SEMUA' }, { id: 'pr', label: 'PENDING' }, { id: 'ordered', label: 'ORDERED' }, { id: 'arrived', label: 'TIBA' }, { id: 'cancelled', label: 'BATAL' }].map(s => (
+          {[{ id: 'all', label: 'Semua' }, { id: 'pr', label: 'Pending' }, { id: 'ordered', label: 'Dipesan' }, { id: 'arrived', label: 'Tiba' }, { id: 'cancelled', label: 'Batal' }].map(s => (
             <button key={s.id} onClick={() => setFilter(s.id)}
               style={{
-                padding: '6px 14px', fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
-                border: filter === s.id ? '1px solid #22C55E' : '1px solid #334155',
-                background: filter === s.id ? '#22C55E22' : 'transparent',
-                color: filter === s.id ? '#22C55E' : '#64748B',
+                padding: '6px 14px', fontSize: 11, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
+                border: filter === s.id ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: filter === s.id ? 'rgba(99,102,241,0.12)' : 'transparent',
+                color: filter === s.id ? 'var(--accent)' : 'var(--text-muted)',
               }}>{s.label}</button>
           ))}
         </div>
         <div className="flex items-center gap-2">
           <input className="input" style={{ width: 220 }} placeholder="Cari barang / vendor / no PR..."
             value={search} onChange={e => setSearch(e.target.value)} />
-          <button className="btn-ghost" onClick={doExport} style={{ fontSize: 11, padding: '8px 14px' }}>⬇ EXPORT MD</button>
-          <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ BUAT ORDER</button>
+          <button className="btn-ghost" onClick={doExport} style={{ fontSize: 11, padding: '8px 14px' }}>⬇ Export Markdown</button>
+          <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ Buat Order</button>
         </div>
       </div>
 
@@ -157,34 +157,34 @@ export default function ProcurementPage({ wsRef }) {
           </thead>
           <tbody>
             {!loading && orders.length === 0 && (
-              <tr><td colSpan={10} style={{ textAlign: 'center', color: '#64748B', padding: 32 }}>
-                Belum ada data order. Klik "+ BUAT ORDER" untuk menambahkan PR/order.
+              <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>
+                Belum ada data order. Klik "+ Buat Order" untuk menambahkan PR/order.
               </td></tr>
             )}
-            {loading && <tr><td colSpan={10} style={{ textAlign: 'center', color: '#64748B', padding: 32 }}>Memuat...</td></tr>}
+            {loading && <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>Memuat...</td></tr>}
             {orders.map(o => {
               const st = STATUS_META[o.status] || STATUS_META.pr;
               return (
                 <tr key={o.id}>
-                  <td style={{ color: '#38BDF8' }}>{o.no_pr || '-'}</td>
-                  <td style={{ fontWeight: 600, color: '#E2E8F0' }}>{o.item_name}</td>
+                  <td style={{ color: 'var(--info)', fontFamily: 'var(--mono)' }}>{o.no_pr || '-'}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text)' }}>{o.item_name}</td>
                   <td>{o.brand || '-'}</td>
-                  <td>{o.qty}{o.unit ? ` ${o.unit}` : ''}</td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{o.qty}{o.unit ? ` ${o.unit}` : ''}</td>
                   <td>{o.vendor || '-'}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{rupiah(o.price)}</td>
-                  <td>{fmtID(o.order_date)}</td>
-                  <td>{fmtID(o.est_arrival)}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--mono)' }}>{rupiah(o.price)}</td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{fmtID(o.order_date)}</td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{fmtID(o.est_arrival)}</td>
                   <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {o.status !== 'arrived' && o.status !== 'cancelled' && (
                         <button onClick={() => arrive(o.id)} disabled={arrivingId === o.id}
-                          style={{ background: '#22C55E22', color: '#22C55E', border: '1px solid #22C55E44', borderRadius: 5, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}>
-                          {arrivingId === o.id ? '...' : 'TIBA → ASET'}
+                          style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
+                          {arrivingId === o.id ? '...' : 'Tiba → Aset'}
                         </button>
                       )}
-                      <button onClick={() => openEdit(o)} style={{ background: '#38BDF822', color: '#38BDF8', border: '1px solid #38BDF844', borderRadius: 5, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}>EDIT</button>
-                      <button onClick={() => setConfirm({ id: o.id, name: o.item_name })} style={{ background: '#EF444422', color: '#EF4444', border: '1px solid #EF444444', borderRadius: 5, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}>HAPUS</button>
+                      <button onClick={() => openEdit(o)} style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => setConfirm({ id: o.id, name: o.item_name })} style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Hapus</button>
                     </div>
                   </td>
                 </tr>
@@ -197,42 +197,42 @@ export default function ProcurementPage({ wsRef }) {
       {/* Add/Edit Modal */}
       {showForm && (
         <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal" style={{ maxWidth: 620, padding: 24 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0', marginBottom: 16 }}>
-              {form.id ? 'EDIT ORDER' : 'BUAT ORDER / PR'}
+          <div className="modal pop-in" style={{ maxWidth: 620, padding: 24 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>
+              {form.id ? 'Edit Order' : 'Buat Order / PR'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {field('NO PR', 'no_pr', 'text', 'cth: PR-2026-001')}
-              {field('NAMA BARANG *', 'item_name', 'text', 'cth: Laptop ThinkPad')}
-              {field('BRAND', 'brand')}
+              {field('No PR', 'no_pr', 'text', 'cth: PR-2026-001')}
+              {field('Nama Barang *', 'item_name', 'text', 'cth: Laptop ThinkPad')}
+              {field('Brand', 'brand')}
               <div>
-                <label style={{ fontSize: 10, color: '#64748B', fontWeight: 700, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>JUMLAH</label>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Jumlah</label>
                 <input type="number" className="input" min="1" value={form.qty} onChange={e => setField('qty', e.target.value)} />
               </div>
-              {field('SATUAN', 'unit', 'text', 'pcs')}
-              {field('VENDOR / SUPPLIER', 'vendor')}
-              {field('HARGA (Rp)', 'price', 'number', '0')}
-              {field('TGL PESAN', 'order_date', 'date')}
-              {field('ESTIMASI TIBA', 'est_arrival', 'date')}
-              {field('CATATAN', 'notes', 'text', 'opsional', true)}
+              {field('Satuan', 'unit', 'text', 'pcs')}
+              {field('Vendor / Supplier', 'vendor')}
+              {field('Harga (Rp)', 'price', 'number', '0')}
+              {field('Tgl Pesan', 'order_date', 'date')}
+              {field('Estimasi Tiba', 'est_arrival', 'date')}
+              {field('Catatan', 'notes', 'text', 'opsional', true)}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               {['pr', 'ordered', 'arrived', 'cancelled'].map(s => (
                 <button key={s} onClick={() => setField('status', s)} type="button"
                   style={{
-                    padding: '6px 12px', fontSize: 10, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+                    padding: '6px 12px', fontSize: 10, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
                     background: form.status === s ? STATUS_META[s].bg : 'transparent',
-                    border: form.status === s ? `1px solid ${STATUS_META[s].color}` : '1px solid #334155',
-                    color: form.status === s ? STATUS_META[s].color : '#64748B',
+                    border: form.status === s ? `1px solid ${STATUS_META[s].color}` : '1px solid var(--border)',
+                    color: form.status === s ? STATUS_META[s].color : 'var(--text-muted)',
                   }}>{STATUS_META[s].label}</button>
               ))}
             </div>
             {formError && (
-              <div style={{ marginTop: 12, background: '#EF444422', border: '1px solid #EF444433', color: '#EF4444', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>{formError}</div>
+              <div style={{ marginTop: 12, background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)', color: 'var(--danger)', borderRadius: 10, padding: '9px 12px', fontSize: 11.5 }}>{formError}</div>
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button className="btn-ghost" onClick={() => setShowForm(false)} style={{ fontSize: 12 }}>BATAL</button>
-              <button className="btn-primary" onClick={save} disabled={saving} style={{ fontSize: 12 }}>{saving ? 'MENYIMPAN...' : 'SIMPAN'}</button>
+              <button className="btn-ghost" onClick={() => setShowForm(false)} style={{ fontSize: 12 }}>Batal</button>
+              <button className="btn-primary" onClick={save} disabled={saving} style={{ fontSize: 12 }}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
             </div>
           </div>
         </div>

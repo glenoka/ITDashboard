@@ -1,49 +1,16 @@
 import React from 'react';
+import Icon from './Icon';
 
 export default function SummaryCards({ stats }) {
   const cards = [
+    { label: 'Total Hosts', value: stats.total, icon: 'Monitor', color: 'var(--text)' },
+    { label: 'Hosts Up', value: stats.up, icon: 'CheckCircle2', color: 'var(--success)' },
+    { label: 'Hosts Down', value: stats.down, icon: 'XCircle', color: 'var(--danger)' },
     {
-      label: 'TOTAL HOSTS',
-      value: stats.total,
-      icon: '◈',
-      color: '#38BDF8',
-      bg: '#38BDF822',
-      border: '#38BDF833',
+      label: 'Availability', value: `${stats.availability}%`, icon: 'Activity', color: 'var(--text)',
+      isPercent: true, pct: parseFloat(stats.availability),
     },
-    {
-      label: 'HOSTS UP',
-      value: stats.up,
-      icon: '▲',
-      color: '#22C55E',
-      bg: '#22C55E22',
-      border: '#22C55E33',
-    },
-    {
-      label: 'HOSTS DOWN',
-      value: stats.down,
-      icon: '▼',
-      color: '#EF4444',
-      bg: '#EF444422',
-      border: '#EF444433',
-    },
-    {
-      label: 'AVAILABILITY',
-      value: `${stats.availability}%`,
-      icon: '◎',
-      color: '#22C55E',
-      bg: '#22C55E11',
-      border: '#22C55E22',
-      isPercent: true,
-      pct: parseFloat(stats.availability),
-    },
-    {
-      label: 'AVG LATENCY',
-      value: `${stats.avgLatency}ms`,
-      icon: '⟳',
-      color: '#F59E0B',
-      bg: '#F59E0B22',
-      border: '#F59E0B33',
-    },
+    { label: 'Avg Latency', value: `${stats.avgLatency}ms`, icon: 'Gauge', color: 'var(--text)' },
   ];
 
   return (
@@ -51,25 +18,25 @@ export default function SummaryCards({ stats }) {
       {cards.map((card, i) => (
         <div
           key={i}
-          className="card card-hover p-4 fade-in"
-          style={{ animationDelay: `${i * 60}ms`, borderColor: card.border }}
+          className="card p-4 fade-in"
+          style={{ animationDelay: `${i * 60}ms` }}
         >
-          <div className="flex items-start justify-between mb-3">
-            <span style={{ fontSize: 10, color: '#64748B', fontWeight: 600, letterSpacing: '0.1em' }}>{card.label}</span>
-            <span style={{ fontSize: 18, color: card.color, opacity: 0.7 }}>{card.icon}</span>
+          <div className="flex items-center justify-between mb-3">
+            <span style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700 }}>{card.label}</span>
+            <Icon name={card.icon} size={16} color="var(--text-faint)" />
           </div>
 
-          <div style={{ fontSize: 28, fontWeight: 700, color: card.color, fontFamily: 'Syne, sans-serif', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: card.color, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
             {card.value}
           </div>
 
           {card.isPercent && (
-            <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ background: '#334155' }}>
+            <div className="mt-3 h-1 rounded-full overflow-hidden" style={{ background: 'var(--input-bg)' }}>
               <div
                 className="h-full rounded-full transition-all duration-1000"
                 style={{
                   width: `${Math.min(100, card.pct)}%`,
-                  background: card.pct > 90 ? '#22C55E' : card.pct > 70 ? '#F59E0B' : '#EF4444',
+                  background: card.pct > 90 ? 'var(--success)' : card.pct > 70 ? 'var(--warning)' : 'var(--danger)',
                 }}
               />
             </div>

@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import Icon from './Icon';
 
 const API = process.env.REACT_APP_API_URL || '';
 const BACKEND = API || 'http://localhost:3002';
 
 const CATEGORY_META = {
-  host:     { label: 'Host Monitor',  icon: '◈', color: '#38BDF8' },
-  cctv:     { label: 'CCTV Camera',   icon: '📹', color: '#F59E0B' },
-  unifi:    { label: 'UniFi',         icon: '🌐', color: '#22C55E' },
-  ruijie:   { label: 'Ruijie',        icon: '🛜', color: '#A855F7' },
+  host:     { label: 'Host Monitor',  icon: 'Monitor', color: 'var(--info)' },
+  cctv:     { label: 'CCTV Camera',   icon: 'Video', color: 'var(--warning)' },
+  unifi:    { label: 'UniFi',         icon: 'Network', color: 'var(--success)' },
+  ruijie:   { label: 'Ruijie',        icon: 'Router', color: 'var(--violet)' },
 };
 
 function formatDuration(seconds) {
@@ -132,54 +133,51 @@ export default function HistoryPage({ wsRef }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column',
-      height: 'calc(100vh - 84px)', background: '#080F1E' }}>
+      height: 'calc(100vh - 84px)', background: 'var(--bg)' }}>
 
       {/* Toolbar */}
-      <div style={{ background: '#0D1B2E', borderBottom: '1px solid #1E3A5F',
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)',
         padding: '8px 16px', display: 'flex', alignItems: 'center',
         gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.1em' }}>
-            🕐 STATUS HISTORY
+          <Icon name="History" size={14} color="var(--text)" />
+          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', letterSpacing: '0.04em' }}>
+            Status History
           </span>
-          <span style={{ fontSize: 10, background: '#1E3A5F', color: '#94A3B8',
-            padding: '2px 8px', borderRadius: 4 }}>{total} events</span>
+          <span style={{ fontSize: 10, background: 'var(--hover)', color: 'var(--text-muted)',
+            padding: '3px 10px', borderRadius: 999, fontFamily: 'var(--mono)' }}>{total} events</span>
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
             <input type="checkbox" checked={autoRefresh}
               onChange={e => setAutoRefresh(e.target.checked)}
-              style={{ accentColor: '#22C55E', cursor: 'pointer' }}/>
-            <span style={{ fontSize: 10, color: '#64748B' }}>Auto-refresh</span>
+              style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
+            <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Auto-refresh</span>
           </label>
 
-          <button onClick={load} disabled={loading}
-            style={{ fontSize: 10, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
-              background: 'transparent', color: '#64748B', border: '1px solid #1E3A5F',
-              fontFamily: 'inherit' }}>
-            {loading ? '⟳' : '↻'} Refresh
+          <button onClick={load} disabled={loading} className="btn-ghost"
+            style={{ fontSize: 10.5, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Icon name="RefreshCw" size={12} className={loading ? 'spin' : ''} />
+            Refresh
           </button>
 
           {!confirmClear ? (
-            <button onClick={() => setConfirmClear(true)}
-              style={{ fontSize: 10, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
-                background: '#EF444411', color: '#EF4444', border: '1px solid #EF444433',
-                fontFamily: 'inherit' }}>
-              🗑 Hapus Log
+            <button onClick={() => setConfirmClear(true)} className="btn-danger"
+              style={{ fontSize: 10.5, padding: '5px 12px', background: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.30)', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="Trash2" size={12} />
+              Hapus Log
             </button>
           ) : (
             <div style={{ display: 'flex', gap: 4 }}>
               <button onClick={handleClearHistory}
-                style={{ fontSize: 10, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
-                  background: '#EF4444', color: '#fff', border: 'none', fontWeight: 700,
+                style={{ fontSize: 10.5, padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+                  background: 'var(--danger)', color: '#fff', border: 'none', fontWeight: 700,
                   fontFamily: 'inherit' }}>
                 Yakin hapus?
               </button>
-              <button onClick={() => setConfirmClear(false)}
-                style={{ fontSize: 10, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
-                  background: 'transparent', color: '#64748B', border: '1px solid #1E3A5F',
-                  fontFamily: 'inherit' }}>
+              <button onClick={() => setConfirmClear(false)} className="btn-ghost"
+                style={{ fontSize: 10.5, padding: '5px 12px' }}>
                 Batal
               </button>
             </div>
@@ -197,29 +195,29 @@ export default function HistoryPage({ wsRef }) {
               <div key={key}
                 onClick={() => setCategory(category === key ? 'all' : key)}
                 style={{
-                  background: '#0A1628', border: `1px solid ${category === key ? meta.color + '66' : '#1E3A5F'}`,
-                  borderRadius: 10, padding: '10px 14px', cursor: 'pointer',
+                  background: 'var(--card)', border: `1px solid ${category === key ? meta.color + '66' : 'var(--border)'}`,
+                  borderRadius: 14, padding: '12px 14px', cursor: 'pointer', boxShadow: 'var(--shadow)',
                   transition: 'border-color 0.15s',
                 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <span style={{ fontSize: 14 }}>{meta.icon}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: meta.color }}>{meta.label}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 9, color: '#475569' }}>
+                  <Icon name={meta.icon} size={14} color={meta.color} />
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: meta.color }}>{meta.label}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
                     {s.last24h} / 24j
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: 14 }}>
+                <div style={{ display: 'flex', gap: 16 }}>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#EF4444', fontFamily: 'JetBrains Mono' }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--danger)', fontFamily: 'var(--mono)' }}>
                       {s.downEvents}
                     </div>
-                    <div style={{ fontSize: 8, color: '#475569', letterSpacing: '0.06em' }}>DOWN EVENTS</div>
+                    <div style={{ fontSize: 8.5, color: 'var(--text-faint)', letterSpacing: '0.06em' }}>DOWN EVENTS</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#22C55E', fontFamily: 'JetBrains Mono' }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--success)', fontFamily: 'var(--mono)' }}>
                       {s.upEvents}
                     </div>
-                    <div style={{ fontSize: 8, color: '#475569', letterSpacing: '0.06em' }}>UP EVENTS</div>
+                    <div style={{ fontSize: 8.5, color: 'var(--text-faint)', letterSpacing: '0.06em' }}>UP EVENTS</div>
                   </div>
                 </div>
               </div>
@@ -234,25 +232,27 @@ export default function HistoryPage({ wsRef }) {
           placeholder="Cari nama device / IP..."
           value={searchInput}
           onChange={e => setSearchInput(e.target.value)}
-          style={{ background: '#080F1E', border: '1px solid #1E3A5F', color: '#E2E8F0',
-            padding: '6px 12px', borderRadius: 6, fontSize: 11, fontFamily: 'inherit',
+          style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)',
+            padding: '7px 12px', borderRadius: 999, fontSize: 11.5, fontFamily: 'inherit',
             outline: 'none', width: 220 }}
         />
 
         <div style={{ display: 'flex', gap: 4 }}>
           {[
-            { v: 'all',      label: 'Semua' },
-            { v: 'host',     label: '◈ Host' },
-            { v: 'cctv',     label: '📹 CCTV' },
-            { v: 'unifi',    label: '🌐 UniFi' },
-            { v: 'ruijie',   label: '🛜 Ruijie' },
+            { v: 'all',      label: 'Semua',   icon: null },
+            { v: 'host',     label: 'Host',    icon: 'Monitor' },
+            { v: 'cctv',     label: 'CCTV',    icon: 'Video' },
+            { v: 'unifi',    label: 'UniFi',   icon: 'Network' },
+            { v: 'ruijie',   label: 'Ruijie',  icon: 'Router' },
           ].map(c => (
             <button key={c.v} onClick={() => setCategory(c.v)}
-              style={{ fontSize: 10, padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
-                background: category === c.v ? '#38BDF822' : 'transparent',
-                color: category === c.v ? '#38BDF8' : '#64748B',
-                border: `1px solid ${category === c.v ? '#38BDF844' : '#1E3A5F'}`,
-                fontFamily: 'inherit', fontWeight: category === c.v ? 700 : 400 }}>
+              style={{ fontSize: 10.5, padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+                background: category === c.v ? 'rgba(59,130,246,0.12)' : 'transparent',
+                color: category === c.v ? 'var(--info)' : 'var(--text-muted)',
+                border: `1px solid ${category === c.v ? 'rgba(59,130,246,0.35)' : 'var(--border)'}`,
+                fontFamily: 'inherit', fontWeight: category === c.v ? 700 : 400,
+                display: 'flex', alignItems: 'center', gap: 5 }}>
+              {c.icon && <Icon name={c.icon} size={11} />}
               {c.label}
             </button>
           ))}
@@ -260,15 +260,15 @@ export default function HistoryPage({ wsRef }) {
 
         <div style={{ display: 'flex', gap: 4 }}>
           {[
-            { v: 'all',  label: 'Semua', color: '#64748B' },
-            { v: 'UP',   label: '● UP',   color: '#22C55E' },
-            { v: 'DOWN', label: '● DOWN', color: '#EF4444' },
+            { v: 'all',  label: 'Semua', color: 'var(--text-muted)' },
+            { v: 'UP',   label: '● UP',   color: 'var(--success)' },
+            { v: 'DOWN', label: '● DOWN', color: 'var(--danger)' },
           ].map(s => (
             <button key={s.v} onClick={() => setStatus(s.v)}
-              style={{ fontSize: 10, padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+              style={{ fontSize: 10.5, padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
                 background: status === s.v ? s.color + '22' : 'transparent',
-                color: status === s.v ? s.color : '#64748B',
-                border: `1px solid ${status === s.v ? s.color + '44' : '#1E3A5F'}`,
+                color: status === s.v ? s.color : 'var(--text-muted)',
+                border: `1px solid ${status === s.v ? s.color + '44' : 'var(--border)'}`,
                 fontFamily: 'inherit', fontWeight: status === s.v ? 700 : 400 }}>
               {s.label}
             </button>
@@ -281,12 +281,12 @@ export default function HistoryPage({ wsRef }) {
         {events.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', height: '100%', gap: 10 }}>
-            <div style={{ fontSize: 48, opacity: 0.12 }}>🕐</div>
-            <div style={{ fontSize: 13, color: '#475569' }}>
+            <div style={{ opacity: 0.12, display: 'flex' }}><Icon name="History" size={44} color="var(--text-faint)" /></div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               {loading ? 'Memuat riwayat...' : 'Belum ada riwayat status'}
             </div>
             {!loading && (
-              <div style={{ fontSize: 11, color: '#334155' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
                 Riwayat akan muncul saat ada perubahan status ON/OFF
               </div>
             )}
@@ -294,15 +294,15 @@ export default function HistoryPage({ wsRef }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
             {events.map((ev, i) => {
-              const meta = CATEGORY_META[ev.category] || { label: ev.category, icon: '•', color: '#64748B' };
+              const meta = CATEGORY_META[ev.category] || { label: ev.category, icon: '•', color: 'var(--text-muted)' };
               const isUp = ev.status === 'UP';
-              const sc = isUp ? '#22C55E' : '#EF4444';
+              const sc = isUp ? 'var(--success)' : 'var(--danger)';
               return (
                 <div key={ev.id}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 12,
-                    background: '#0A1628', border: `1px solid ${sc}22`,
-                    borderLeft: `3px solid ${sc}`, borderRadius: 8,
+                    background: 'var(--card)', border: `1px solid ${sc}22`,
+                    borderLeft: `3px solid ${sc}`, borderRadius: 12, boxShadow: 'var(--shadow)',
                     padding: '10px 14px',
                   }}>
                   {/* Status icon */}
@@ -310,39 +310,41 @@ export default function HistoryPage({ wsRef }) {
                     background: sc + '15', border: `1.5px solid ${sc}44`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0 }}>
-                    <span style={{ fontSize: 13 }}>{isUp ? '▲' : '▼'}</span>
+                    <Icon name={isUp ? 'ArrowUp' : 'ArrowDown'} size={13} color={sc} />
                   </div>
 
                   {/* Main info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 9, color: meta.color, fontWeight: 700,
-                        background: meta.color + '18', padding: '1px 6px', borderRadius: 4 }}>
-                        {meta.icon} {meta.label}
+                        background: meta.color + '18', padding: '2px 7px', borderRadius: 999,
+                        display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Icon name={meta.icon} size={9} />
+                        {meta.label}
                       </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#E2E8F0' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
                         {ev.entity_name}
                       </span>
-                      <span style={{ fontSize: 10, color: '#475569', fontFamily: 'JetBrains Mono' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
                         {ev.entity_target}
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <span style={{ fontSize: 10, color: sc, fontWeight: 800, letterSpacing: '0.06em' }}>
+                      <span style={{ fontSize: 10, color: sc, fontWeight: 800, letterSpacing: '0.04em' }}>
                         {isUp ? 'KEMBALI ONLINE' : 'TERPUTUS / OFFLINE'}
                       </span>
                       {ev.latency != null && (
-                        <span style={{ fontSize: 10, color: '#F59E0B' }}>{Math.round(ev.latency)}ms</span>
+                        <span style={{ fontSize: 10, color: 'var(--warning)', fontFamily: 'var(--mono)' }}>{Math.round(ev.latency)}ms</span>
                       )}
                     </div>
                   </div>
 
                   {/* Timestamp */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'JetBrains Mono' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
                       {formatDateTime(ev.occurred_at)}
                     </div>
-                    <div style={{ fontSize: 9, color: '#475569', marginTop: 2 }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 2 }}>
                       {relativeTime(ev.occurred_at)}
                     </div>
                   </div>
@@ -356,22 +358,22 @@ export default function HistoryPage({ wsRef }) {
       {/* Pagination */}
       {total > pageSize && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 12, padding: '10px 16px', borderTop: '1px solid #1E3A5F', flexShrink: 0 }}>
+          gap: 12, padding: '10px 16px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
           <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-            style={{ fontSize: 11, padding: '5px 14px', borderRadius: 5,
-              background: 'transparent', color: page === 0 ? '#334155' : '#94A3B8',
-              border: '1px solid #1E3A5F', cursor: page === 0 ? 'default' : 'pointer',
+            style={{ fontSize: 11, padding: '5px 14px', borderRadius: 999,
+              background: 'transparent', color: page === 0 ? 'var(--text-faint)' : 'var(--text-muted)',
+              border: '1px solid var(--border)', cursor: page === 0 ? 'default' : 'pointer',
               fontFamily: 'inherit' }}>
             ← Sebelumnya
           </button>
-          <span style={{ fontSize: 11, color: '#64748B', fontFamily: 'JetBrains Mono' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
             Halaman {page + 1} dari {totalPages}
           </span>
           <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
-            style={{ fontSize: 11, padding: '5px 14px', borderRadius: 5,
-              background: 'transparent', color: page >= totalPages - 1 ? '#334155' : '#94A3B8',
-              border: '1px solid #1E3A5F', cursor: page >= totalPages - 1 ? 'default' : 'pointer',
+            style={{ fontSize: 11, padding: '5px 14px', borderRadius: 999,
+              background: 'transparent', color: page >= totalPages - 1 ? 'var(--text-faint)' : 'var(--text-muted)',
+              border: '1px solid var(--border)', cursor: page >= totalPages - 1 ? 'default' : 'pointer',
               fontFamily: 'inherit' }}>
             Berikutnya →
           </button>

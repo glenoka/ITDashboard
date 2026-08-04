@@ -28,7 +28,24 @@
 - [x] `Header.js` hapus blok label "topology"
 - [x] Build frontend sukses (`npm run build`)
 
+## Phase 2 — Checklist Tab Project & Run di Port Baru
+- [x] Backend route checklist project (`/api/checklist/projects` CRUD + toggle) + broadcast WS
+- [x] Frontend tab "Project" di `ChecklistPage.js` + `ProjectChecklist.js` (item aktif tampil, selesai tersembunyi ke section)
+- [x] Run backend `PORT=3002`, frontend `PORT=3005`; fallback API/WS dipindah ke 3002
+- [x] Git init, commit `89c8198`, push ke `origin/main` (github.com/glenoka/ITDashboard)
+
+## Phase 3 — Redesign UI (Dark + Light)
+- [x] Fondasi tema: design tokens di `index.css`, `ThemeContext.js`, `index.html`, `App.js`, `Header.js` (toggle ☀️/🌙), `LoginPage.js`
+- [x] Restyle halaman dashboard: `SummaryCards.js`, `SystemPanel.js`, `BandwidthPanel.js`, `ChartsPanel.js`, `MonitoringTable.js`
+- [x] Restyle komponen: `NotificationBanner.js`, `AlertToast.js`, `AddHostModal.js`, `HostDetailModal.js`, `MarkdownExportModal.js`, `ConfirmModal.js`, `LiveModal.js`
+- [x] Restyle halaman fitur: `CCTVPage.js`, `HistoryPage.js`, `UnifiPage.js`, `RuijiePage.js`, `ProcurementPage.js`, `AssetPage.js`, `SOPPage.js`, `ChecklistPage.js`, `ProjectChecklist.js`
+- [x] Konversi `SOPPage.js`/`ChecklistPage.js` dari `React.createElement` → JSX
+- [x] Design tokens: aksen indigo `#635BFF`, green khusus status Up (`--success`), light mode soft gray `#EDEFF3`, font Inter (hapus Syne/Plus Jakarta Sans), JetBrains Mono untuk angka, radius/shadow minimal
+- [x] Semua ikon emoji → `lucide-react` (stroke 1.5px) via helper `Icon.js`; sisa `var(--accent)` dijamin bermakna aksen UI, bukan status
+- [x] Status online/Up konsisten `var(--success)` + `rgba(16,185,129,…)` di semua halaman (Host, CCTV, UniFi, Ruijie, History, LiveModal); info blue `rgba(56,189,248,…)` → `rgba(59,130,246,…)`
+- [x] Build frontend sukses (`npm run build`), dev server 3005 compile bersih
+
 ## Pending
-- [ ] Uji runtime menyeluruh (backend baru port 3002 + frontend)
-- [ ] Opsional: polish `index.css` / styling sesuai kebutuhan
+- [ ] Uji visual tiap halaman di `http://localhost:3005` (dark + light) + verifikasi WS/API 3002
+- [ ] Commit & push perubahan tema ke `origin/main`
 - [ ] Opsional: dokumentasi lanjutan / fitur baru

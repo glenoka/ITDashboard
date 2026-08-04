@@ -7,10 +7,10 @@ import { toMarkdownTable, fmtID, rupiah } from '../utils/format';
 const API = process.env.REACT_APP_API_URL || '';
 
 const STATUS_META = {
-  active:  { label: 'DIPAKAI', color: '#22C55E', bg: '#22C55E22' },
-  standby: { label: 'STANDBY', color: '#38BDF8', bg: '#38BDF822' },
-  repair:  { label: 'PERBAIKAN', color: '#F59E0B', bg: '#F59E0B22' },
-  disposed:{ label: 'DIHAPUS', color: '#64748B', bg: '#64748B22' },
+  active:  { label: 'Dipakai', color: 'var(--success)', bg: 'rgba(16,185,129,0.12)' },
+  standby: { label: 'Standby', color: 'var(--info)', bg: 'rgba(59,130,246,0.12)' },
+  repair:  { label: 'Perbaikan', color: 'var(--warning)', bg: 'rgba(251,191,36,0.12)' },
+  disposed:{ label: 'Dihapus', color: 'var(--text-muted)', bg: 'rgba(100,116,139,0.15)' },
 };
 
 const CATEGORIES = ['Umum', 'Komputer', 'Jaringan', 'CCTV', 'Printer', 'UPS', 'Lainnya'];
@@ -97,7 +97,7 @@ export default function AssetPage({ wsRef }) {
 
   const field = (label, key, type = 'text', placeholder = '', span = false) => (
     <div style={span ? { gridColumn: '1 / -1' } : {}}>
-      <label style={{ fontSize: 10, color: '#64748B', fontWeight: 700, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>{label}</label>
+      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>{label}</label>
       <input type={type} className="input" value={form[key] ?? ''} placeholder={placeholder} onChange={e => setField(key, e.target.value)} />
     </div>
   );
@@ -107,13 +107,13 @@ export default function AssetPage({ wsRef }) {
       {/* Toolbar */}
       <div className="card p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          {[{ id: 'all', label: 'SEMUA' }, { id: 'active', label: 'DIPAKAI' }, { id: 'standby', label: 'STANDBY' }, { id: 'repair', label: 'PERBAIKAN' }, { id: 'disposed', label: 'DIHAPUS' }].map(s => (
+          {[{ id: 'all', label: 'Semua' }, { id: 'active', label: 'Dipakai' }, { id: 'standby', label: 'Standby' }, { id: 'repair', label: 'Perbaikan' }, { id: 'disposed', label: 'Dihapus' }].map(s => (
             <button key={s.id} onClick={() => setFilter(s.id)}
               style={{
-                padding: '6px 14px', fontSize: 11, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
-                border: filter === s.id ? '1px solid #22C55E' : '1px solid #334155',
-                background: filter === s.id ? '#22C55E22' : 'transparent',
-                color: filter === s.id ? '#22C55E' : '#64748B',
+                padding: '6px 14px', fontSize: 11, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
+                border: filter === s.id ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: filter === s.id ? 'rgba(99,102,241,0.12)' : 'transparent',
+                color: filter === s.id ? 'var(--accent)' : 'var(--text-muted)',
               }}>{s.label}</button>
           ))}
           <select className="input" style={{ width: 150, marginLeft: 4 }} value={cat} onChange={e => setCat(e.target.value)}>
@@ -124,8 +124,8 @@ export default function AssetPage({ wsRef }) {
         <div className="flex items-center gap-2">
           <input className="input" style={{ width: 220 }} placeholder="Cari kode / barang / serial..."
             value={search} onChange={e => setSearch(e.target.value)} />
-          <button className="btn-ghost" onClick={doExport} style={{ fontSize: 11, padding: '8px 14px' }}>⬇ EXPORT MD</button>
-          <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ TAMBAH ASET</button>
+          <button className="btn-ghost" onClick={doExport} style={{ fontSize: 11, padding: '8px 14px' }}>⬇ Export Markdown</button>
+          <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ Tambah Aset</button>
         </div>
       </div>
 
@@ -140,29 +140,29 @@ export default function AssetPage({ wsRef }) {
           </thead>
           <tbody>
             {!loading && assets.length === 0 && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', color: '#64748B', padding: 32 }}>
-                Belum ada aset terdaftar. Klik "+ TAMBAH ASET" atau tandai order "TIBA → ASET".
+              <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>
+                Belum ada aset terdaftar. Klik "+ Tambah Aset" atau tandai order "Tiba → Aset".
               </td></tr>
             )}
-            {loading && <tr><td colSpan={11} style={{ textAlign: 'center', color: '#64748B', padding: 32 }}>Memuat...</td></tr>}
+            {loading && <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>Memuat...</td></tr>}
             {assets.map(a => {
               const st = STATUS_META[a.status] || STATUS_META.active;
               return (
                 <tr key={a.id}>
-                  <td style={{ color: '#38BDF8', fontWeight: 600 }}>{a.asset_code || '-'}</td>
-                  <td style={{ fontWeight: 600, color: '#E2E8F0' }}>{a.item_name}</td>
+                  <td style={{ color: 'var(--info)', fontWeight: 600, fontFamily: 'var(--mono)' }}>{a.asset_code || '-'}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text)' }}>{a.item_name}</td>
                   <td>{a.brand || '-'}</td>
-                  <td>{a.serial_no || '-'}</td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{a.serial_no || '-'}</td>
                   <td>{a.category || '-'}</td>
                   <td>{a.location || '-'}</td>
-                  <td>{fmtID(a.purchase_date)}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{rupiah(a.purchase_price)}</td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{fmtID(a.purchase_date)}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--mono)' }}>{rupiah(a.purchase_price)}</td>
                   <td>{a.pic || '-'}</td>
                   <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => openEdit(a)} style={{ background: '#38BDF822', color: '#38BDF8', border: '1px solid #38BDF844', borderRadius: 5, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}>EDIT</button>
-                      <button onClick={() => setConfirm({ id: a.id, name: a.item_name })} style={{ background: '#EF444422', color: '#EF4444', border: '1px solid #EF444444', borderRadius: 5, padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}>HAPUS</button>
+                      <button onClick={() => openEdit(a)} style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => setConfirm({ id: a.id, name: a.item_name })} style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Hapus</button>
                     </div>
                   </td>
                 </tr>
@@ -175,46 +175,46 @@ export default function AssetPage({ wsRef }) {
       {/* Add/Edit Modal */}
       {showForm && (
         <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal" style={{ maxWidth: 660, padding: 24 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0', marginBottom: 16 }}>
-              {form.id ? 'EDIT ASET' : 'TAMBAH ASET'}
+          <div className="modal pop-in" style={{ maxWidth: 660, padding: 24 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>
+              {form.id ? 'Edit Aset' : 'Tambah Aset'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {field('KODE ASET (kosong = otomatis)', 'asset_code', 'text', 'cth: AST-20260804-001')}
-              {field('NAMA BARANG *', 'item_name', 'text', 'cth: Laptop ThinkPad X1')}
-              {field('BRAND', 'brand')}
-              {field('MODEL', 'model')}
-              {field('SERIAL NUMBER', 'serial_no')}
+              {field('Kode Aset (kosong = otomatis)', 'asset_code', 'text', 'cth: AST-20260804-001')}
+              {field('Nama Barang *', 'item_name', 'text', 'cth: Laptop ThinkPad X1')}
+              {field('Brand', 'brand')}
+              {field('Model', 'model')}
+              {field('Serial Number', 'serial_no')}
               <div>
-                <label style={{ fontSize: 10, color: '#64748B', fontWeight: 700, letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>KATEGORI</label>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Kategori</label>
                 <select className="input" value={form.category} onChange={e => setField('category', e.target.value)}>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              {field('LOKASI', 'location', 'text', 'cth: Ruang Server')}
-              {field('TGL PEMBELIAN', 'purchase_date', 'date')}
-              {field('HARGA (Rp)', 'purchase_price', 'number')}
-              {field('MASA GARANSI S/D', 'warranty_end', 'date')}
-              {field('PIC / PENGGUNA', 'pic', 'text', 'cth: Budi')}
-              {field('CATATAN', 'notes', 'text', 'opsional', true)}
+              {field('Lokasi', 'location', 'text', 'cth: Ruang Server')}
+              {field('Tgl Pembelian', 'purchase_date', 'date')}
+              {field('Harga (Rp)', 'purchase_price', 'number')}
+              {field('Masa Garansi S/D', 'warranty_end', 'date')}
+              {field('PIC / Pengguna', 'pic', 'text', 'cth: Budi')}
+              {field('Catatan', 'notes', 'text', 'opsional', true)}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               {Object.entries(STATUS_META).map(([k, v]) => (
                 <button key={k} onClick={() => setField('status', k)} type="button"
                   style={{
-                    padding: '6px 12px', fontSize: 10, fontWeight: 700, borderRadius: 6, cursor: 'pointer',
+                    padding: '6px 12px', fontSize: 10, fontWeight: 700, borderRadius: 999, cursor: 'pointer',
                     background: form.status === k ? v.bg : 'transparent',
-                    border: form.status === k ? `1px solid ${v.color}` : '1px solid #334155',
-                    color: form.status === k ? v.color : '#64748B',
+                    border: form.status === k ? `1px solid ${v.color}` : '1px solid var(--border)',
+                    color: form.status === k ? v.color : 'var(--text-muted)',
                   }}>{v.label}</button>
               ))}
             </div>
             {formError && (
-              <div style={{ marginTop: 12, background: '#EF444422', border: '1px solid #EF444433', color: '#EF4444', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>{formError}</div>
+              <div style={{ marginTop: 12, background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)', color: 'var(--danger)', borderRadius: 10, padding: '9px 12px', fontSize: 11.5 }}>{formError}</div>
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-              <button className="btn-ghost" onClick={() => setShowForm(false)} style={{ fontSize: 12 }}>BATAL</button>
-              <button className="btn-primary" onClick={save} disabled={saving} style={{ fontSize: 12 }}>{saving ? 'MENYIMPAN...' : 'SIMPAN'}</button>
+              <button className="btn-ghost" onClick={() => setShowForm(false)} style={{ fontSize: 12 }}>Batal</button>
+              <button className="btn-primary" onClick={save} disabled={saving} style={{ fontSize: 12 }}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
             </div>
           </div>
         </div>

@@ -14,12 +14,12 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail }) {
   });
 
   return (
-    <div className="card" style={{ background: '#1E293B' }}>
+    <div className="card" style={{ background: 'var(--card)' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#334155' }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2">
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.1em' }}>MONITORING</span>
-          <span style={{ fontSize: 10, background: '#334155', color: '#94A3B8', padding: '2px 6px', borderRadius: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Monitoring</span>
+          <span style={{ fontSize: 10, background: 'var(--hover)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: 999 }}>
             {hosts.length} hosts
           </span>
         </div>
@@ -39,15 +39,14 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail }) {
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 4,
-                background: filter === f ? (f === 'up' ? '#22C55E22' : f === 'down' ? '#EF444422' : '#334155') : 'transparent',
-                color: filter === f ? (f === 'up' ? '#22C55E' : f === 'down' ? '#EF4444' : '#E2E8F0') : '#64748B',
-                border: `1px solid ${filter === f ? (f === 'up' ? '#22C55E44' : f === 'down' ? '#EF444444' : '#475569') : 'transparent'}`,
-                cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em',
-                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 999,
+                background: filter === f ? (f === 'up' ? 'rgba(16,185,129,0.12)' : f === 'down' ? 'rgba(239,68,68,0.12)' : 'var(--hover)') : 'transparent',
+                color: filter === f ? (f === 'up' ? 'var(--success)' : f === 'down' ? 'var(--danger)' : 'var(--text)') : 'var(--text-muted)',
+                border: `1px solid ${filter === f ? (f === 'up' ? 'rgba(16,185,129,0.35)' : f === 'down' ? 'rgba(239,68,68,0.35)' : 'var(--border-strong)') : 'transparent'}`,
+                cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              {f}
+              {f === 'all' ? 'Semua' : f === 'up' ? 'Up' : 'Down'}
             </button>
           ))}
         </div>
@@ -58,22 +57,22 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail }) {
         <table>
           <thead>
             <tr>
-              <th>NAME</th>
-              <th>TARGET</th>
-              <th>TYPE</th>
-              <th>STATUS</th>
-              <th>LATENCY</th>
-              <th>UPTIME</th>
-              <th>LAST CHECK</th>
-              <th>INTERVAL</th>
-              <th>ACTION</th>
+              <th>Name</th>
+              <th>Target</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Latency</th>
+              <th>Uptime</th>
+              <th>Last Check</th>
+              <th>Interval</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', color: '#475569', padding: '40px 0' }}>
-                  {hosts.length === 0 ? '— No hosts configured. Add your first host. —' : '— No results —'}
+                <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '40px 0' }}>
+                  {hosts.length === 0 ? 'Belum ada host. Tambahkan host pertama Anda.' : 'Tidak ada hasil.'}
                 </td>
               </tr>
             ) : filtered.map(host => (
@@ -93,9 +92,9 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail }) {
 }
 
 function HostRow({ host, onEdit, onDelete, onDetail }) {
-  const statusColor = host.status === 'UP' ? '#22C55E' : host.status === 'DOWN' ? '#EF4444' : '#64748B';
+  const statusColor = host.status === 'UP' ? 'var(--success)' : host.status === 'DOWN' ? 'var(--danger)' : 'var(--text-muted)';
   const uptimePct = parseFloat(host.uptime) || 0;
-  const uptimeColor = uptimePct > 90 ? '#22C55E' : uptimePct > 70 ? '#F59E0B' : '#EF4444';
+  const uptimeColor = uptimePct > 90 ? 'var(--success)' : uptimePct > 70 ? 'var(--warning)' : 'var(--danger)';
 
   const lastCheck = host.lastCheck
     ? new Date(host.lastCheck).toLocaleTimeString('id-ID', { hour12: false })
@@ -106,16 +105,16 @@ function HostRow({ host, onEdit, onDelete, onDetail }) {
       <td>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: statusColor }} />
-          <span style={{ fontWeight: 600, color: '#E2E8F0' }}>{host.name}</span>
+          <span style={{ fontWeight: 700, color: 'var(--text)' }}>{host.name}</span>
         </div>
       </td>
-      <td style={{ color: '#94A3B8', fontSize: 11 }}>{host.target}</td>
+      <td style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--mono)' }}>{host.target}</td>
       <td>
         <span style={{
-          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3, letterSpacing: '0.08em',
-          background: host.type === 'ip' ? '#38BDF822' : '#A855F722',
-          color: host.type === 'ip' ? '#38BDF8' : '#A855F7',
-          border: `1px solid ${host.type === 'ip' ? '#38BDF833' : '#A855F733'}`,
+          fontSize: 9.5, fontWeight: 800, padding: '3px 8px', borderRadius: 999, letterSpacing: '0.04em',
+          background: host.type === 'ip' ? 'rgba(59,130,246,0.12)' : 'rgba(167,139,250,0.12)',
+          color: host.type === 'ip' ? 'var(--info)' : 'var(--violet)',
+          border: `1px solid ${host.type === 'ip' ? 'rgba(59,130,246,0.30)' : 'rgba(167,139,250,0.30)'}`,
         }}>
           {host.type === 'ip' ? 'ICMP' : 'HTTP'}
         </span>
@@ -123,40 +122,42 @@ function HostRow({ host, onEdit, onDelete, onDetail }) {
       <td>
         <span className={`badge badge-${host.status === 'UP' ? 'up' : host.status === 'DOWN' ? 'down' : 'unknown'}`}>
           <span>{host.status === 'UP' ? '●' : host.status === 'DOWN' ? '●' : '○'}</span>
-          {host.status || 'UNKNOWN'}
+          {host.status === 'UP' ? 'Up' : host.status === 'DOWN' ? 'Down' : 'Unknown'}
         </span>
       </td>
       <td>
         {host.latency != null
-          ? <span style={{ color: host.latency < 100 ? '#22C55E' : host.latency < 300 ? '#F59E0B' : '#EF4444', fontVariantNumeric: 'tabular-nums' }}>
+          ? <span style={{ color: host.latency < 100 ? 'var(--success)' : host.latency < 300 ? 'var(--warning)' : 'var(--danger)', fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--mono)' }}>
               {Math.round(host.latency)}ms
             </span>
-          : <span style={{ color: '#475569' }}>—</span>
+          : <span style={{ color: 'var(--text-faint)' }}>—</span>
         }
       </td>
       <td>
         <div className="flex items-center gap-2">
-          <div className="w-16 h-1 rounded-full overflow-hidden" style={{ background: '#334155' }}>
+          <div className="w-16 h-1 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
             <div className="h-full rounded-full" style={{ width: `${uptimePct}%`, background: uptimeColor, transition: 'width 0.5s' }} />
           </div>
-          <span style={{ color: uptimeColor, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{host.uptime}%</span>
+          <span style={{ color: uptimeColor, fontSize: 11, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--mono)' }}>{host.uptime}%</span>
         </div>
       </td>
-      <td style={{ color: '#64748B', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{lastCheck}</td>
-      <td style={{ color: '#64748B', fontSize: 11 }}>{INTERVALS[host.interval] || `${host.interval}s`}</td>
+      <td style={{ color: 'var(--text-muted)', fontSize: 11, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--mono)' }}>{lastCheck}</td>
+      <td style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--mono)' }}>{INTERVALS[host.interval] || `${host.interval}s`}</td>
       <td onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-1">
           <button
             onClick={() => onEdit(host)}
-            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: '#334155', color: '#94A3B8', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            className="btn-ghost"
+            style={{ fontSize: 11, padding: '4px 10px' }}
           >
-            EDIT
+            Edit
           </button>
           <button
             onClick={() => onDelete(host.id)}
-            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: '#EF444411', color: '#EF4444', border: '1px solid #EF444422', cursor: 'pointer', fontFamily: 'inherit' }}
+            className="btn-danger"
+            style={{ fontSize: 11, padding: '4px 10px' }}
           >
-            DEL
+            Hapus
           </button>
         </div>
       </td>

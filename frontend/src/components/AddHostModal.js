@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import Icon from './Icon';
 
 const INTERVALS = [
-  { value: 10, label: '10 Seconds' },
-  { value: 30, label: '30 Seconds' },
-  { value: 60, label: '1 Minute' },
-  { value: 180, label: '3 Minutes' },
-  { value: 600, label: '10 Minutes' },
+  { value: 10, label: '10 detik' },
+  { value: 30, label: '30 detik' },
+  { value: 60, label: '1 menit' },
+  { value: 180, label: '3 menit' },
+  { value: 600, label: '10 menit' },
 ];
+
+const labelStyle = { fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 8 };
 
 export default function AddHostModal({ host, onClose, onSave }) {
   const [form, setForm] = useState({
@@ -24,7 +27,7 @@ export default function AddHostModal({ host, onClose, onSave }) {
 
   const handleSave = () => {
     if (!form.name.trim() || !form.target.trim()) {
-      alert('Name and target are required');
+      alert('Nama dan target wajib diisi');
       return;
     }
     onSave(form);
@@ -32,49 +35,53 @@ export default function AddHostModal({ host, onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal fade-in" onClick={e => e.stopPropagation()}>
+      <div className="modal pop-in" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: '#334155' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <div>
-            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 15, color: '#E2E8F0' }}>
-              {host ? 'EDIT HOST' : 'ADD HOST'}
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>
+              {host ? 'Edit Host' : 'Tambah Host'}
             </div>
-            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
-              {host ? 'Modify monitoring target' : 'Add new monitoring target'}
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+              {host ? 'Perbarui target monitoring' : 'Tambahkan target monitoring baru'}
             </div>
           </div>
-          <button onClick={onClose} style={{ color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+          <button onClick={onClose} title="Tutup" style={{ color: 'var(--text-muted)', background: 'var(--hover)', border: '1px solid var(--border)', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="X" size={15} />
+          </button>
         </div>
 
         {/* Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-5">
           {/* Name */}
           <div>
-            <label style={{ fontSize: 10, color: '#64748B', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>HOST NAME</label>
-            <input className="input" placeholder="e.g. Core Router, Google DNS" value={form.name} onChange={e => set('name', e.target.value)} />
+            <label style={labelStyle}>Nama Host</label>
+            <input className="input" placeholder="contoh: Core Router, Google DNS" value={form.name} onChange={e => set('name', e.target.value)} />
           </div>
 
           {/* Type */}
           <div>
-            <label style={{ fontSize: 10, color: '#64748B', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>TYPE</label>
+            <label style={labelStyle}>Jenis Monitoring</label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { value: 'ip', label: 'Local IP / ICMP', icon: '◈', desc: 'Ping via ICMP' },
-                { value: 'website', label: 'Website / URL', icon: '⌁', desc: 'HTTP GET request' },
+                { value: 'ip', label: 'Local IP / ICMP', icon: 'Network', desc: 'Ping via ICMP' },
+                { value: 'website', label: 'Website / URL', icon: 'Globe', desc: 'HTTP GET request' },
               ].map(t => (
                 <button
                   key={t.value}
                   onClick={() => set('type', t.value)}
                   style={{
-                    background: form.type === t.value ? '#22C55E11' : '#0F172A',
-                    border: `1px solid ${form.type === t.value ? '#22C55E44' : '#334155'}`,
-                    borderRadius: 8, padding: '10px 12px', cursor: 'pointer', textAlign: 'left',
-                    transition: 'all 0.15s',
+                    background: form.type === t.value ? 'rgba(99,102,241,0.10)' : 'var(--input-bg)',
+                    border: `1px solid ${form.type === t.value ? 'rgba(99,102,241,0.40)' : 'var(--border)'}`,
+                    borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
+                    transition: 'all 0.15s', boxShadow: form.type === t.value ? 'var(--glow)' : 'none',
                   }}
                 >
-                  <div style={{ fontSize: 16, marginBottom: 4, color: form.type === t.value ? '#22C55E' : '#64748B' }}>{t.icon}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: form.type === t.value ? '#E2E8F0' : '#94A3B8', fontFamily: 'inherit' }}>{t.label}</div>
-                  <div style={{ fontSize: 10, color: '#475569', marginTop: 2, fontFamily: 'inherit' }}>{t.desc}</div>
+                  <div style={{ marginBottom: 4, color: form.type === t.value ? 'var(--accent)' : 'var(--text-muted)', display: 'flex' }}>
+                    <Icon name={t.icon} size={17} />
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: form.type === t.value ? 'var(--text)' : 'var(--text-muted)', fontFamily: 'inherit' }}>{t.label}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 3, fontFamily: 'inherit' }}>{t.desc}</div>
                 </button>
               ))}
             </div>
@@ -82,32 +89,32 @@ export default function AddHostModal({ host, onClose, onSave }) {
 
           {/* Target */}
           <div>
-            <label style={{ fontSize: 10, color: '#64748B', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>TARGET</label>
+            <label style={labelStyle}>Target</label>
             <input
               className="input"
-              placeholder={form.type === 'ip' ? 'e.g. 192.168.1.1' : 'e.g. https://google.com'}
+              placeholder={form.type === 'ip' ? 'contoh: 192.168.1.1' : 'contoh: https://google.com'}
               value={form.target}
               onChange={e => set('target', e.target.value)}
             />
-            <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>
-              {form.type === 'ip' ? 'IPv4 address or hostname for ICMP ping' : 'Full URL including https://'}
+            <div style={{ fontSize: 10.5, color: 'var(--text-faint)', marginTop: 5 }}>
+              {form.type === 'ip' ? 'Alamat IPv4 atau hostname untuk ping ICMP' : 'URL lengkap termasuk https://'}
             </div>
           </div>
 
           {/* Interval */}
           <div>
-            <label style={{ fontSize: 10, color: '#64748B', letterSpacing: '0.1em', display: 'block', marginBottom: 6 }}>CHECK INTERVAL</label>
+            <label style={labelStyle}>Interval Pengecekan</label>
             <div className="flex flex-wrap gap-2">
               {INTERVALS.map(iv => (
                 <button
                   key={iv.value}
                   onClick={() => set('interval', iv.value)}
                   style={{
-                    fontSize: 11, padding: '5px 12px', borderRadius: 4, cursor: 'pointer',
-                    background: form.interval === iv.value ? '#22C55E22' : '#0F172A',
-                    color: form.interval === iv.value ? '#22C55E' : '#64748B',
-                    border: `1px solid ${form.interval === iv.value ? '#22C55E44' : '#334155'}`,
-                    fontFamily: 'inherit', transition: 'all 0.15s',
+                    fontSize: 11.5, padding: '6px 14px', borderRadius: 999, cursor: 'pointer',
+                    background: form.interval === iv.value ? 'rgba(99,102,241,0.12)' : 'var(--input-bg)',
+                    color: form.interval === iv.value ? 'var(--accent)' : 'var(--text-muted)',
+                    border: `1px solid ${form.interval === iv.value ? 'rgba(99,102,241,0.40)' : 'var(--border)'}`,
+                    fontFamily: 'inherit', fontWeight: form.interval === iv.value ? 700 : 500, transition: 'all 0.15s',
                   }}
                 >
                   {iv.label}
@@ -118,15 +125,12 @@ export default function AddHostModal({ host, onClose, onSave }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: '#334155' }}>
-          <button
-            onClick={onClose}
-            style={{ fontSize: 11, padding: '7px 16px', borderRadius: 5, background: 'transparent', color: '#64748B', border: '1px solid #334155', cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            CANCEL
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t" style={{ borderColor: 'var(--border)' }}>
+          <button className="btn-ghost" onClick={onClose} style={{ fontSize: 12, padding: '8px 18px' }}>
+            Batal
           </button>
           <button className="btn-primary" onClick={handleSave}>
-            {host ? 'SAVE CHANGES' : 'ADD HOST'}
+            {host ? 'Simpan Perubahan' : 'Tambah Host'}
           </button>
         </div>
       </div>

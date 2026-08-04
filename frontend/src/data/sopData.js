@@ -518,11 +518,11 @@ export const jobDescription = {
 };
 
 export const categoryMeta = {
-  pemasangan:    { label: 'Pemasangan / Penggantian', color: '#38BDF8', icon: '\u{1F527}' },
-  perawatan:     { label: 'Perawatan (Preventive)',   color: '#22C55E', icon: '\u{1F9F9}' },
-  perbaikan:     { label: 'Perbaikan (Troubleshoot)', color: '#EF4444', icon: '\u{1F6E0}' },
-  pengembangan:  { label: 'Pengembangan',             color: '#A855F7', icon: '\u{1F680}' },
-  manajemen:     { label: 'Manajemen & Kebijakan',    color: '#F59E0B', icon: '\u{1F4CB}' },
+  pemasangan:    { label: 'Pemasangan / Penggantian', color: '#3B82F6' },
+  perawatan:     { label: 'Perawatan (Preventive)',   color: '#10B981' },
+  perbaikan:     { label: 'Perbaikan (Troubleshoot)', color: '#F87171' },
+  pengembangan:  { label: 'Pengembangan',             color: '#A78BFA' },
+  manajemen:     { label: 'Manajemen & Kebijakan',    color: '#F59E0B' },
 };
 
 export default sopData;

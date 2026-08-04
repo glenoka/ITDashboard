@@ -19,6 +19,7 @@ import ChecklistPage from './components/ChecklistPage';
 import ProcurementPage from './components/ProcurementPage';
 import AssetPage from './components/AssetPage';
 import LoginPage from './components/LoginPage';
+import Icon from './components/Icon';
 import { API, useAuth } from './context/AuthContext';
 
 // ── Notification helpers ──────────────────────────────────────────────────────
@@ -196,10 +197,12 @@ export default function App() {
 
   if (checking) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, #22C55E, #16A34A)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, margin: '0 auto 12px' }}>⬡</div>
-          <div style={{ fontSize: 11, color: '#64748B', letterSpacing: '0.2em', fontWeight: 600 }}>MEMUAT...</div>
+          <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+            <Icon name="Hexagon" size={24} color="var(--on-accent)" />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.2em', fontWeight: 600 }}>MEMUAT...</div>
         </div>
       </div>
     );
@@ -210,7 +213,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0F172A' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <Header
         wsStatus={wsStatus} stats={stats}
         onAddHost={() => setShowAddModal(true)}

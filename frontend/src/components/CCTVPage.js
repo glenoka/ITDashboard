@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import LiveModal from './LiveModal';
+import Icon from './Icon';
 import { authUrl } from '../api';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -41,7 +42,7 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
       setLoadState('error'); setLastRefresh(new Date());
     };
     img.src = url;
-  }, [cam.id, cam.refresh_rate]);
+  }, [cam.id]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -51,7 +52,7 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
     return () => { mountedRef.current = false; clearInterval(intervalRef.current); };
   }, [fetchSnapshot, cam.refresh_rate]);
 
-  const sc = cam.online ? '#22C55E' : '#EF4444';
+  const sc = cam.online ? 'var(--success)' : 'var(--danger)';
 
   const handleForceCheck = async () => {
     setChecking(true);
@@ -65,12 +66,12 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
 
   return (
     <div style={{
-      background: '#0A1628', border: `1px solid ${cam.online ? '#1E3A5F' : '#3A1E1E'}`,
-      borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      boxShadow: cam.online ? 'none' : '0 0 12px #EF444422 inset',
+      background: 'var(--card)', border: `1px solid ${cam.online ? 'var(--border)' : 'rgba(239,68,68,0.35)'}`,
+      borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      boxShadow: 'var(--shadow)',
     }}>
       {/* Feed area — 16:9 */}
-      <div style={{ position: 'relative', paddingBottom: '56.25%', background: '#050C1A', flexShrink: 0 }}>
+      <div style={{ position: 'relative', paddingBottom: '56.25%', background: 'var(--bg-deep)', flexShrink: 0 }}>
         {loadState === 'ok' && imgSrc ? (
           <img src={imgSrc} alt={cam.name}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}/>
@@ -78,23 +79,23 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {loadState === 'loading'
-              ? <><div style={{ width: 28, height: 28, border: '3px solid #1E3A5F',
-                  borderTopColor: '#38BDF8', borderRadius: '50%', animation: 'spin 1s linear infinite' }}/>
-                  <span style={{ fontSize: 10, color: '#475569' }}>Connecting...</span></>
-              : <><span style={{ fontSize: 28, opacity: 0.25 }}>📷</span>
-                  <span style={{ fontSize: 10, color: '#EF4444' }}>No signal</span>
-                  <span style={{ fontSize: 9, color: '#475569' }}>{cam.ip}</span></>
+              ? <><div style={{ width: 28, height: 28, border: '3px solid var(--border)',
+                  borderTopColor: 'var(--info)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}/>
+                  <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>Menghubungkan...</span></>
+              : <><span style={{ opacity: 0.35, display: 'flex' }}><Icon name="Video" size={26} color="var(--text-faint)" /></span>
+                  <span style={{ fontSize: 10, color: 'var(--danger)' }}>Tidak ada sinyal</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>{cam.ip}</span></>
             }
           </div>
         )}
 
         {/* Status badge top-left */}
         <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center',
-          gap: 5, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
-          padding: '3px 8px', borderRadius: 5 }}>
+          gap: 5, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          padding: '3px 8px', borderRadius: 999 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: sc,
             boxShadow: cam.online ? `0 0 6px ${sc}` : 'none' }}/>
-          <span style={{ fontSize: 9, color: sc, fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
+          <span style={{ fontSize: 9, color: sc, fontWeight: 800, fontFamily: 'var(--mono)', letterSpacing: '0.06em' }}>
             {cam.online ? 'LIVE' : 'OFFLINE'}
           </span>
         </div>
@@ -103,22 +104,22 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
         <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column',
           alignItems: 'flex-end', gap: 3 }}>
           {cam.latency && cam.online && (
-            <div style={{ background: 'rgba(0,0,0,0.65)', padding: '2px 6px', borderRadius: 4 }}>
-              <span style={{ fontSize: 9, color: '#F59E0B', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
+            <div style={{ background: 'rgba(0,0,0,0.6)', padding: '2px 6px', borderRadius: 6 }}>
+              <span style={{ fontSize: 9, color: 'var(--warning)', fontFamily: 'var(--mono)', fontWeight: 700 }}>
                 {Math.round(cam.latency)}ms
               </span>
             </div>
           )}
-          <div style={{ background: 'rgba(0,0,0,0.55)', padding: '2px 6px', borderRadius: 4 }}>
-            <span style={{ fontSize: 8, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>⟳{refreshLabel}</span>
+          <div style={{ background: 'rgba(0,0,0,0.55)', padding: '2px 6px', borderRadius: 6 }}>
+            <span style={{ fontSize: 8, color: 'var(--info)', fontFamily: 'var(--mono)' }}>⟳{refreshLabel}</span>
           </div>
         </div>
 
         {/* Timestamp bottom-left */}
         {lastRefresh && (
           <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.55)',
-            padding: '2px 6px', borderRadius: 4 }}>
-            <span style={{ fontSize: 8, color: '#64748B', fontFamily: 'JetBrains Mono' }}>
+            padding: '2px 6px', borderRadius: 6 }}>
+            <span style={{ fontSize: 8, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
               {lastRefresh.toLocaleTimeString('id-ID', { hour12: false })}
             </span>
           </div>
@@ -126,18 +127,18 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
 
         {/* Fullscreen button bottom-right */}
         <button onClick={() => onFullscreen(cam)}
-          style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.65)',
-            border: '1px solid #334155', borderRadius: 5, padding: '3px 7px',
-            cursor: 'pointer', color: '#E2E8F0', fontSize: 11 }} title="Snapshot Fullscreen">⛶</button>
+          style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.6)',
+            border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '3px 8px',
+            cursor: 'pointer', color: '#fff', fontSize: 12 }} title="Fullscreen Snapshot">⛶</button>
       </div>
 
       {/* Info bar */}
-      <div style={{ padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 8, background: '#0D1B2E' }}>
+      <div style={{ padding: '9px 11px', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--card-2)' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#E2E8F0',
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cam.name}</div>
-          <div style={{ fontSize: 9, color: '#475569',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--mono)' }}>
             {cam.location ? `${cam.location} · ` : ''}{cam.ip}
             {cam.auth_type && cam.auth_type !== 'none' ? ` · ${cam.auth_type.toUpperCase()}` : ''}
           </div>
@@ -145,18 +146,18 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
         <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
           <button onClick={() => onLive(cam)} title="Live Stream RTSP"
             style={{ display: 'flex', alignItems: 'center', gap: 4,
-              padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
-              background: '#EF444422', border: '1px solid #EF444455',
-              color: '#EF4444', fontSize: 9, fontWeight: 800,
-              fontFamily: 'JetBrains Mono', letterSpacing: '0.08em',
+              padding: '3px 8px', borderRadius: 999, cursor: 'pointer',
+              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
+              color: 'var(--danger)', fontSize: 9, fontWeight: 800,
+              fontFamily: 'var(--mono)', letterSpacing: '0.06em',
               height: 24, transition: 'background 0.15s' }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#EF4444',
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--danger)',
               animation: 'pulse 1.5s infinite', flexShrink: 0 }}/>
             LIVE
           </button>
-          <TileBtn onClick={handleForceCheck} title="Force check" color="#F59E0B">{checking ? '⟳' : '⚡'}</TileBtn>
-          <TileBtn onClick={() => onEdit(cam)} title="Edit" color="#64748B">✎</TileBtn>
-          <TileBtn onClick={() => onDelete(cam.id)} title="Delete" color="#EF4444">✕</TileBtn>
+          <TileBtn onClick={handleForceCheck} title="Force check" color="var(--warning)">{checking ? '⟳' : '⚡'}</TileBtn>
+          <TileBtn onClick={() => onEdit(cam)} title="Edit" color="var(--text-muted)">✎</TileBtn>
+          <TileBtn onClick={() => onDelete(cam.id)} title="Delete" color="var(--danger)">✕</TileBtn>
         </div>
       </div>
     </div>
@@ -166,8 +167,8 @@ function CameraTile({ cam, onFullscreen, onEdit, onDelete, onForceCheck, onLive 
 function TileBtn({ onClick, title, color, children }) {
   return (
     <button onClick={onClick} title={title} style={{
-      width: 24, height: 24, background: 'transparent', border: '1px solid #1E3A5F',
-      borderRadius: 4, color, cursor: 'pointer', fontSize: 12,
+      width: 24, height: 24, background: 'transparent', border: '1px solid var(--border)',
+      borderRadius: 8, color, cursor: 'pointer', fontSize: 12,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>{children}</button>
   );
@@ -199,38 +200,39 @@ function FullscreenModal({ cam, onClose }) {
     return () => { mountedRef.current = false; clearInterval(intervalRef.current); };
   }, [fetch, refreshRate]);
 
-  const sc = cam.online ? '#22C55E' : '#EF4444';
+  const sc = cam.online ? 'var(--success)' : 'var(--danger)';
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)',
       zIndex: 100, display: 'flex', flexDirection: 'column' }}>
       {/* Top bar */}
       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 16px', background: '#0D1B2E', borderBottom: '1px solid #1E3A5F', flexShrink: 0 }}>
+        padding: '10px 16px', background: 'var(--card-2)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: sc,
             boxShadow: cam.online ? `0 0 8px ${sc}` : 'none' }}/>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0' }}>{cam.name}</span>
-          {cam.location && <span style={{ fontSize: 11, color: '#64748B' }}>— {cam.location}</span>}
-          <span style={{ fontSize: 11, color: '#38BDF8', marginLeft: 4 }}>{cam.ip}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{cam.name}</span>
+          {cam.location && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— {cam.location}</span>}
+          <span style={{ fontSize: 11, color: 'var(--info)', marginLeft: 4, fontFamily: 'var(--mono)' }}>{cam.ip}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-          <span style={{ fontSize: 10, color: '#64748B' }}>REFRESH:</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>Refresh:</span>
           {REFRESH_OPTIONS.map(r => (
             <button key={r.value} onClick={() => setRefreshRate(r.value)} style={{
-              fontSize: 10, padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontFamily: 'inherit',
-              background: refreshRate === r.value ? '#38BDF822' : 'transparent',
-              color:      refreshRate === r.value ? '#38BDF8'   : '#64748B',
-              border:     `1px solid ${refreshRate === r.value ? '#38BDF844' : '#1E3A5F'}`,
+              fontSize: 10, padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+              background: refreshRate === r.value ? 'rgba(59,130,246,0.12)' : 'transparent',
+              color: refreshRate === r.value ? 'var(--info)' : 'var(--text-muted)',
+              border:     `1px solid ${refreshRate === r.value ? 'rgba(59,130,246,0.35)' : 'var(--border)'}`,
+              fontWeight: refreshRate === r.value ? 700 : 400,
             }}>{r.label}</button>
           ))}
-          {lastRefresh && <span style={{ fontSize: 9, color: '#475569', marginLeft: 8 }}>
+          {lastRefresh && <span style={{ fontSize: 9, color: 'var(--text-faint)', marginLeft: 8, fontFamily: 'var(--mono)' }}>
             {lastRefresh.toLocaleTimeString('id-ID', { hour12: false })}</span>}
-          {cam.latency && <span style={{ fontSize: 10, color: '#F59E0B' }}>{Math.round(cam.latency)}ms</span>}
+          {cam.latency && <span style={{ fontSize: 10, color: 'var(--warning)', fontFamily: 'var(--mono)' }}>{Math.round(cam.latency)}ms</span>}
         </div>
-        <button onClick={onClose} style={{ color: '#64748B', background: '#1E3A5F', border: 'none',
-          borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 13, marginLeft: 12 }}>
-          ✕ TUTUP
+        <button onClick={onClose} className="btn-ghost"
+          style={{ marginLeft: 12, padding: '5px 14px', fontSize: 12 }}>
+          ✕ Tutup
         </button>
       </div>
       {/* Image area */}
@@ -238,17 +240,17 @@ function FullscreenModal({ cam, onClose }) {
         alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'hidden' }}>
         {loadState === 'ok' && imgSrc
           ? <img src={imgSrc} alt={cam.name} style={{ maxWidth: '100%', maxHeight: '100%',
-              objectFit: 'contain', borderRadius: 8, boxShadow: '0 0 60px #000' }}/>
+              objectFit: 'contain', borderRadius: 10, boxShadow: '0 0 60px #000' }}/>
           : loadState === 'error'
           ? <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 56, opacity: 0.2, marginBottom: 12 }}>📷</div>
-              <div style={{ fontSize: 14, color: '#EF4444' }}>Camera tidak dapat dijangkau</div>
-              <div style={{ fontSize: 12, color: '#475569', marginTop: 6 }}>{cam.ip}</div>
+              <div style={{ opacity: 0.2, marginBottom: 12, display: 'flex' }}><Icon name="Video" size={48} color="var(--text-faint)" /></div>
+              <div style={{ fontSize: 14, color: 'var(--danger)', fontWeight: 700 }}>Kamera tidak dapat dijangkau</div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 6, fontFamily: 'var(--mono)' }}>{cam.ip}</div>
             </div>
           : <div style={{ textAlign: 'center' }}>
-              <div style={{ width: 48, height: 48, border: '4px solid #1E3A5F', borderTopColor: '#38BDF8',
+              <div style={{ width: 48, height: 48, border: '4px solid var(--border)', borderTopColor: 'var(--info)',
                 borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }}/>
-              <div style={{ fontSize: 12, color: '#475569' }}>Memuat...</div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>Memuat...</div>
             </div>
         }
       </div>
@@ -276,45 +278,40 @@ function CameraModal({ cam, onClose, onSave }) {
   };
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(6px)', zIndex: 60,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '16px' }}>
-
+    <div className="modal-overlay">
       <div
-        style={{ background: '#0D1B2E', border: '1px solid #1E3A5F', borderRadius: 14,
+        style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16,
           width: '100%', maxWidth: 500,
           maxHeight: '92vh', display: 'flex', flexDirection: 'column',
-          marginBottom: 24 }}>
+          marginBottom: 24, boxShadow: 'var(--shadow)' }}>
 
         {/* Header — fixed, never scrolls */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', borderBottom: '1px solid #1E3A5F',
-          flexShrink: 0, background: '#0D1B2E', borderRadius: '14px 14px 0 0' }}>
+          padding: '16px 22px', borderBottom: '1px solid var(--border)',
+          flexShrink: 0, background: 'var(--card)', borderRadius: '16px 16px 0 0' }}>
           <div>
-            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 15, color: '#E2E8F0' }}>
-              {cam ? '✎ EDIT KAMERA' : '+ TAMBAH KAMERA'}
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
+              {cam ? 'Edit Kamera' : 'Tambah Kamera'}
             </div>
-            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Konfigurasi IP Camera / CCTV</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Konfigurasi IP Camera / CCTV</div>
           </div>
-          <button onClick={onClose} style={{ color: '#475569', background: 'none', border: 'none',
-            cursor: 'pointer', fontSize: 18 }}>✕</button>
+          <button onClick={onClose} style={{ color: 'var(--text-muted)', background: 'var(--hover)', border: '1px solid var(--border)',
+            borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 14 }}>✕</button>
         </div>
 
         {/* Form body — scrollable */}
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14,
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16,
           overflowY: 'auto', flex: 1 }}>
 
           {/* Name & Location */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={lbl}>NAMA KAMERA *</label>
+              <label style={lbl}>Nama Kamera *</label>
               <input className="input" placeholder="Lobby Utama" value={form.name}
                 onChange={e => set('name', e.target.value)} style={inp}/>
             </div>
             <div>
-              <label style={lbl}>LOKASI</label>
+              <label style={lbl}>Lokasi</label>
               <input className="input" placeholder="Lantai 1, Gedung A" value={form.location}
                 onChange={e => set('location', e.target.value)} style={inp}/>
             </div>
@@ -322,13 +319,13 @@ function CameraModal({ cam, onClose, onSave }) {
 
           {/* IP + Auto URL */}
           <div>
-            <label style={lbl}>IP ADDRESS *</label>
+            <label style={lbl}>IP Address *</label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input className="input" placeholder="192.168.1.100" value={form.ip}
                 onChange={e => set('ip', e.target.value)} style={{ ...inp, flex: 1 }}/>
               <button onClick={autoFillSnapshot}
-                style={{ padding: '8px 12px', background: '#1E3A5F', border: 'none', borderRadius: 6,
-                  color: '#38BDF8', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                style={{ padding: '8px 14px', background: 'var(--hover)', border: '1px solid var(--border)', borderRadius: 10,
+                  color: 'var(--info)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap', fontWeight: 700 }}>
                 Auto URL
               </button>
             </div>
@@ -339,17 +336,17 @@ function CameraModal({ cam, onClose, onSave }) {
             <label style={lbl}>RTSP URL (untuk Live Stream)</label>
             <input className="input" placeholder="rtsp://admin:pass@192.168.1.100:554/Streaming/Channels/101"
               value={form.rtsp_url} onChange={e => set('rtsp_url', e.target.value)} style={inp}/>
-            <div style={{ fontSize: 9, color: '#475569', marginTop: 4 }}>
-              Digunakan saat klik tombol ▶ LIVE · Kosongkan jika tidak perlu live view
+            <div style={{ fontSize: 9.5, color: 'var(--text-faint)', marginTop: 4 }}>
+              Dipakai saat klik tombol ▶ Live · Kosongkan jika tidak perlu live view
             </div>
           </div>
 
           {/* Snapshot URL */}
           <div>
-            <label style={lbl}>SNAPSHOT URL</label>
-            <div style={{ fontSize: 9, color: '#475569', marginBottom: 5 }}>
+            <label style={lbl}>Snapshot URL</label>
+            <div style={{ fontSize: 9.5, color: 'var(--text-faint)', marginBottom: 5 }}>
               Kosongkan = otomatis coba&nbsp;
-              <code style={{ color: '#38BDF8' }}>http://IP/snapshot.jpg</code>
+              <code style={{ color: 'var(--info)' }}>http://IP/snapshot.jpg</code>
             </div>
             <input className="input" placeholder="http://192.168.1.100/snapshot.jpg"
               value={form.snapshot_url} onChange={e => set('snapshot_url', e.target.value)} style={inp}/>
@@ -357,22 +354,22 @@ function CameraModal({ cam, onClose, onSave }) {
 
           {/* Auth type */}
           <div>
-            <label style={lbl}>METODE AUTENTIKASI</label>
+            <label style={lbl}>Metode Autentikasi</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
               {[
-                { value: 'none',   label: 'Tidak Ada',   desc: 'Tanpa login',     color: '#64748B' },
-                { value: 'basic',  label: 'Basic Auth',  desc: 'Standard HTTP',   color: '#38BDF8' },
-                { value: 'digest', label: 'Digest Auth', desc: 'Hikvision/Dahua', color: '#A855F7' },
+                { value: 'none',   label: 'Tidak Ada',   desc: 'Tanpa login',     color: 'var(--text-muted)' },
+                { value: 'basic',  label: 'Basic Auth',  desc: 'Standard HTTP',   color: 'var(--info)' },
+                { value: 'digest', label: 'Digest Auth', desc: 'Hikvision/Dahua', color: 'var(--violet)' },
               ].map(a => (
                 <button key={a.value} onClick={() => set('auth_type', a.value)} style={{
-                  padding: '8px 4px', borderRadius: 6, cursor: 'pointer', textAlign: 'center',
-                  background: form.auth_type === a.value ? a.color + '22' : '#080F1E',
-                  border: `1px solid ${form.auth_type === a.value ? a.color + '66' : '#1E3A5F'}`,
+                  padding: '9px 4px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
+                  background: form.auth_type === a.value ? a.color + '22' : 'var(--input-bg)',
+                  border: `1px solid ${form.auth_type === a.value ? a.color + '66' : 'var(--border)'}`,
                   fontFamily: 'inherit', transition: 'all 0.15s',
                 }}>
                   <div style={{ fontSize: 11, fontWeight: 700,
-                    color: form.auth_type === a.value ? a.color : '#64748B', marginBottom: 2 }}>{a.label}</div>
-                  <div style={{ fontSize: 9, color: '#475569' }}>{a.desc}</div>
+                    color: form.auth_type === a.value ? a.color : 'var(--text-muted)', marginBottom: 2 }}>{a.label}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)' }}>{a.desc}</div>
                 </button>
               ))}
             </div>
@@ -381,14 +378,14 @@ function CameraModal({ cam, onClose, onSave }) {
           {/* Credentials */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={lbl}>USERNAME</label>
+              <label style={lbl}>Username</label>
               <input className="input" placeholder="admin" value={form.username}
                 onChange={e => set('username', e.target.value)}
                 disabled={form.auth_type === 'none'}
                 style={{ ...inp, opacity: form.auth_type === 'none' ? 0.4 : 1 }}/>
             </div>
             <div>
-              <label style={lbl}>PASSWORD</label>
+              <label style={lbl}>Password</label>
               <input className="input" type="password"
                 placeholder={form.auth_type === 'none' ? '—' : cam ? '(kosong = tidak berubah)' : 'password'}
                 value={form.password} onChange={e => set('password', e.target.value)}
@@ -399,14 +396,14 @@ function CameraModal({ cam, onClose, onSave }) {
 
           {/* Refresh interval */}
           <div>
-            <label style={lbl}>INTERVAL SNAPSHOT</label>
+            <label style={lbl}>Interval Snapshot</label>
             <div style={{ display: 'flex', gap: 8 }}>
               {REFRESH_OPTIONS.map(r => (
                 <button key={r.value} onClick={() => set('refresh_rate', r.value)} style={{
-                  flex: 1, padding: '9px 4px', borderRadius: 6, cursor: 'pointer', textAlign: 'center',
-                  background: form.refresh_rate === r.value ? '#38BDF822' : '#080F1E',
-                  border: `1px solid ${form.refresh_rate === r.value ? '#38BDF866' : '#1E3A5F'}`,
-                  color:  form.refresh_rate === r.value ? '#38BDF8' : '#64748B',
+                  flex: 1, padding: '9px 4px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
+                  background: form.refresh_rate === r.value ? 'rgba(59,130,246,0.12)' : 'var(--input-bg)',
+                  border: `1px solid ${form.refresh_rate === r.value ? 'rgba(59,130,246,0.40)' : 'var(--border)'}`,
+                  color:  form.refresh_rate === r.value ? 'var(--info)' : 'var(--text-muted)',
                   fontSize: 13, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.15s',
                 }}>{r.label}</button>
               ))}
@@ -414,34 +411,30 @@ function CameraModal({ cam, onClose, onSave }) {
           </div>
 
           {/* URL tips */}
-          <div style={{ background: '#0A1628', border: '1px solid #1E3A5F', borderRadius: 8, padding: '10px 14px' }}>
-            <div style={{ fontSize: 10, color: '#38BDF8', fontWeight: 700, marginBottom: 6 }}>💡 URL Snapshot Umum</div>
-            <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.9, fontFamily: 'JetBrains Mono' }}>
-              Hikvision:&nbsp;<span style={{ color: '#94A3B8' }}>/ISAPI/Streaming/channels/101/picture</span><br/>
-              Dahua:&nbsp;<span style={{ color: '#94A3B8' }}>/cgi-bin/snapshot.cgi</span><br/>
-              Axis:&nbsp;<span style={{ color: '#94A3B8' }}>/axis-cgi/jpg/image.cgi</span><br/>
-              Generic:&nbsp;<span style={{ color: '#94A3B8' }}>/snapshot.jpg</span>
+          <div style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ fontSize: 10.5, color: 'var(--info)', fontWeight: 700, marginBottom: 6 }}>💡 URL Snapshot Umum</div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', lineHeight: 1.9, fontFamily: 'var(--mono)' }}>
+              Hikvision:&nbsp;<span style={{ color: 'var(--text-muted)' }}>/ISAPI/Streaming/channels/101/picture</span><br/>
+              Dahua:&nbsp;<span style={{ color: 'var(--text-muted)' }}>/cgi-bin/snapshot.cgi</span><br/>
+              Axis:&nbsp;<span style={{ color: 'var(--text-muted)' }}>/axis-cgi/jpg/image.cgi</span><br/>
+              Generic:&nbsp;<span style={{ color: 'var(--text-muted)' }}>/snapshot.jpg</span>
             </div>
           </div>
         </div>
 
         {/* Footer — fixed at bottom, never scrolls */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end',
-          padding: '12px 20px', borderTop: '1px solid #1E3A5F',
-          flexShrink: 0, background: '#0D1B2E',
-          borderRadius: '0 0 14px 14px' }}>
-          <button onClick={onClose}
-            style={{ fontSize: 11, padding: '8px 18px', borderRadius: 5, background: 'transparent',
-              color: '#64748B', border: '1px solid #1E3A5F', cursor: 'pointer', fontFamily: 'inherit' }}>
-            CANCEL
+          padding: '14px 22px', borderTop: '1px solid var(--border)',
+          flexShrink: 0, background: 'var(--card)',
+          borderRadius: '0 0 16px 16px' }}>
+          <button onClick={onClose} className="btn-ghost" style={{ fontSize: 12, padding: '8px 18px' }}>
+            Batal
           </button>
-          <button onClick={() => {
+          <button className="btn-primary" onClick={() => {
             if (!form.name.trim() || !form.ip.trim()) return alert('Nama dan IP wajib diisi');
             onSave({ ...form, auth_type: form.auth_type || 'none' });
-          }} style={{ fontSize: 11, padding: '8px 22px', borderRadius: 5,
-            background: '#22C55E', color: '#071A0E', border: 'none',
-            cursor: 'pointer', fontFamily: 'inherit', fontWeight: 800, letterSpacing: '0.06em' }}>
-            {cam ? 'SIMPAN' : 'TAMBAH'}
+          }}>
+            {cam ? 'Simpan' : 'Tambah'}
           </button>
         </div>
       </div>
@@ -450,8 +443,8 @@ function CameraModal({ cam, onClose, onSave }) {
 }
 
 // shared styles
-const lbl = { fontSize: 10, color: '#64748B', letterSpacing: '0.1em', display: 'block', marginBottom: 6 };
-const inp = { background: '#080F1E', borderColor: '#1E3A5F' };
+const lbl = { fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 7 };
+const inp = { background: 'var(--input-bg)', borderColor: 'var(--border)' };
 
 // ── Main CCTV page ────────────────────────────────────────────────────────────
 export default function CCTVPage({ wsRef }) {
@@ -517,40 +510,38 @@ export default function CCTVPage({ wsRef }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column',
-      height: 'calc(100vh - 84px)', background: '#080F1E' }}>
+      height: 'calc(100vh - 84px)', background: 'var(--bg)' }}>
 
       {/* Toolbar */}
-      <div style={{ background: '#0D1B2E', borderBottom: '1px solid #1E3A5F',
-        padding: '8px 16px', display: 'flex', alignItems: 'center',
+      <div style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)',
+        padding: '8px 18px', display: 'flex', alignItems: 'center',
         gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', letterSpacing: '0.1em' }}>
-            📹 CCTV MONITOR
+          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)', letterSpacing: '0.04em' }}>
+            <Icon name="Video" size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} /> CCTV Monitor
           </span>
-          <span style={{ fontSize: 10, background: '#1E3A5F', color: '#94A3B8',
-            padding: '2px 8px', borderRadius: 4 }}>{cameras.length} kamera</span>
+          <span style={{ fontSize: 10, background: 'var(--hover)', color: 'var(--text-muted)',
+            padding: '3px 10px', borderRadius: 999, fontFamily: 'var(--mono)' }}>{cameras.length} kamera</span>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <span style={{ fontSize: 11, color: '#22C55E', fontWeight: 700 }}>● {onlineCount} ONLINE</span>
-          <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 700 }}>● {offlineCount} OFFLINE</span>
+          <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>● {onlineCount} Online</span>
+          <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 700 }}>● {offlineCount} Offline</span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontSize: 10, color: '#475569' }}>GRID:</span>
+          <span style={{ fontSize: 10, color: 'var(--text-faint)', fontWeight: 700 }}>Grid:</span>
           {GRID_OPTIONS.map(g => (
             <button key={g.cols} onClick={() => setGridCols(g.cols)} style={{
-              fontSize: 10, padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-              background: gridCols === g.cols ? '#38BDF822' : 'transparent',
-              color:      gridCols === g.cols ? '#38BDF8'   : '#64748B',
-              border:     `1px solid ${gridCols === g.cols ? '#38BDF844' : '#1E3A5F'}`,
+              fontSize: 10, padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+              background: gridCols === g.cols ? 'rgba(59,130,246,0.12)' : 'transparent',
+              color: gridCols === g.cols ? 'var(--info)' : 'var(--text-muted)',
+              border:     `1px solid ${gridCols === g.cols ? 'rgba(59,130,246,0.35)' : 'var(--border)'}`,
               fontFamily: 'inherit', fontWeight: gridCols === g.cols ? 700 : 400,
             }}>{g.label}</button>
           ))}
-          <div style={{ width: 1, height: 20, background: '#1E3A5F', margin: '0 4px' }}/>
+          <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }}/>
           <button onClick={() => { setEditCam(null); setShowAddModal(true); }}
-            style={{ fontSize: 11, padding: '6px 16px', borderRadius: 6, cursor: 'pointer',
-              background: '#22C55E', color: '#071A0E', border: 'none',
-              fontFamily: 'inherit', fontWeight: 800, letterSpacing: '0.06em' }}>
-            + KAMERA
+            className="btn-primary" style={{ padding: '6px 16px', fontSize: 11.5 }}>
+            + Kamera
           </button>
         </div>
       </div>
@@ -560,15 +551,12 @@ export default function CCTVPage({ wsRef }) {
         {cameras.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', height: '100%', gap: 10 }}>
-            <div style={{ fontSize: 52, opacity: 0.12 }}>📹</div>
-            <div style={{ fontSize: 14, color: '#475569' }}>Belum ada kamera</div>
-            <div style={{ fontSize: 11, color: '#334155', marginBottom: 10 }}>
+            <div style={{ opacity: 0.12, display: 'flex', justifyContent: 'center' }}><Icon name="Video" size={44} color="var(--text-faint)" /></div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 700 }}>Belum ada kamera</div>
+            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 10 }}>
               Tambahkan IP Camera untuk memulai monitoring CCTV
             </div>
-            <button onClick={() => setShowAddModal(true)}
-              style={{ fontSize: 12, padding: '8px 20px', borderRadius: 6,
-                background: '#22C55E', color: '#071A0E', border: 'none',
-                cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>
+            <button onClick={() => setShowAddModal(true)} className="btn-primary" style={{ fontSize: 12.5 }}>
               + Tambah Kamera Pertama
             </button>
           </div>

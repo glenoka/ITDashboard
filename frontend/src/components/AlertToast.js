@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Icon from './Icon';
 
 export default function AlertToast({ alert, onDismiss }) {
   const [visible, setVisible] = useState(false);
@@ -10,11 +11,10 @@ export default function AlertToast({ alert, onDismiss }) {
     return () => clearTimeout(t);
   }, []);
 
-  const color = isDown ? '#EF4444' : '#22C55E';
-  const bg = isDown ? '#1a0a0a' : '#0a1a0f';
-  const border = isDown ? '#EF444466' : '#22C55E66';
-  const icon = isDown ? '🔴' : '🟢';
-  const label = isDown ? 'HOST DOWN' : 'HOST RECOVERED';
+  const color = isDown ? 'var(--danger)' : 'var(--success)';
+  const bg = isDown ? 'rgba(239,68,68,0.10)' : 'rgba(16,185,129,0.10)';
+  const border = isDown ? 'rgba(239,68,68,0.40)' : 'rgba(16,185,129,0.40)';
+  const label = isDown ? 'Host Down' : 'Host Pulih';
 
   return (
     <div
@@ -23,40 +23,40 @@ export default function AlertToast({ alert, onDismiss }) {
         background: bg,
         border: `1px solid ${border}`,
         borderLeft: `4px solid ${color}`,
-        borderRadius: 8,
+        borderRadius: 10,
         padding: '12px 14px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'flex-start',
         gap: 10,
-        boxShadow: `0 4px 24px ${color}33, 0 0 0 1px ${color}11`,
+        boxShadow: `var(--shadow), 0 0 0 1px ${color}22`,
         opacity: visible ? 1 : 0,
         transform: visible ? 'translateX(0)' : 'translateX(24px)',
         transition: 'opacity 0.25s ease, transform 0.25s ease',
         minWidth: 280,
       }}
     >
-      <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+      <Icon name={isDown ? 'XCircle' : 'CheckCircle2'} size={18} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '0.08em', marginBottom: 3 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color, letterSpacing: '0.04em', marginBottom: 3 }}>
           {label}
         </div>
-        <div style={{ fontSize: 13, color: '#E2E8F0', fontWeight: 600, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 700, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {alert.hostName}
         </div>
         {alert.target && (
-          <div style={{ fontSize: 10, color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--mono)' }}>
             {alert.target}
           </div>
         )}
-        <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4 }}>
           {new Date(alert.timestamp).toLocaleTimeString('id-ID', { hour12: false })}
         </div>
       </div>
       <button
         onClick={e => { e.stopPropagation(); onDismiss(); }}
-        style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, flexShrink: 0, padding: 2 }}
-      >✕</button>
+        style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 2, display: 'flex' }}
+      ><Icon name="X" size={14} /></button>
     </div>
   );
 }
