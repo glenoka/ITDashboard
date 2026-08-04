@@ -1,0 +1,10 @@
+node_modules/
+build/
+*.db
+*.bak
+backend/hls/
+.env
+.env.local
+.DS_Store
+frontend/devserver.log
+frontend/npm-debug.log*

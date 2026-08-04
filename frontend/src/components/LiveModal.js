@@ -1,0 +1,257 @@
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+
+const API = process.env.REACT_APP_API_URL || '';
+
+// Load HLS.js from CDN dynamically
+function loadHlsJs() {
+  return new Promise((resolve, reject) => {
+    if (window.Hls) return resolve(window.Hls);
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js';
+    script.onload  = () => resolve(window.Hls);
+    script.onerror = () => reject(new Error('Failed to load HLS.js'));
+    document.head.appendChild(script);
+  });
+}
+
+export default function LiveModal({ cam, onClose }) {
+  const videoRef   = useRef(null);
+  const hlsRef     = useRef(null);
+  const [phase, setPhase]     = useState('starting'); // starting | loading | playing | error
+  const [errMsg, setErrMsg]   = useState('');
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef   = useRef(null);
+
+  useEffect(() => {
+    // Elapsed timer for "Starting stream..." phase
+    timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(timerRef.current);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function start() {
+      try {
+        // 1. Ask backend to start ffmpeg
+        setPhase('starting');
+        const startRes = await axios.post(`${API}/api/cctv/${cam.id}/stream/start`);
+        if (cancelled) return;
+        if (!startRes.data.ok) throw new Error('Backend failed to start stream');
+
+        const hlsUrl = `${API || 'http://localhost:3002'}${startRes.data.url}`;
+
+        // 2. If pending, wait a bit more
+        if (startRes.data.pending) await new Promise(r => setTimeout(r, 3000));
+        if (cancelled) return;
+
+        setPhase('loading');
+
+        // 3. Load HLS.js
+        const Hls = await loadHlsJs();
+        if (cancelled) return;
+
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 30,
+            maxBufferLength: 15,
+            liveSyncDurationCount: 2,
+            liveMaxLatencyDurationCount: 5,
+          });
+          hlsRef.current = hls;
+
+          hls.loadSource(hlsUrl);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (!cancelled) {
+              setPhase('playing');
+              clearInterval(timerRef.current);
+              video.play().catch(() => {});
+            }
+          });
+
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              setPhase('error');
+              setErrMsg(`HLS error: ${data.type} — ${data.details}`);
+            }
+          });
+
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          video.src = hlsUrl;
+          video.addEventListener('loadedmetadata', () => {
+            if (!cancelled) { setPhase('playing'); video.play().catch(() => {}); }
+          });
+        } else {
+          throw new Error('Browser tidak support HLS. Gunakan Chrome/Edge/Firefox terbaru.');
+        }
+
+      } catch (err) {
+        if (!cancelled) {
+          setPhase('error');
+          setErrMsg(err.message || 'Gagal memulai stream');
+        }
+      }
+    }
+
+    start();
+
+    return () => {
+      cancelled = true;
+      clearInterval(timerRef.current);
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+      // Stop stream on backend
+      axios.post(`${API}/api/cctv/${cam.id}/stream/stop`).catch(() => {});
+    };
+  }, [cam.id]);
+
+  const sc = cam.online ? '#22C55E' : '#EF4444';
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.97)',
+      zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+        background: '#0D1B2E', borderBottom: '1px solid #1E3A5F', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Live indicator */}
+          {phase === 'playing' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5,
+              background: '#EF444422', border: '1px solid #EF444444',
+              borderRadius: 5, padding: '3px 8px' }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#EF4444',
+                boxShadow: '0 0 6px #EF4444', animation: 'pulse 1.5s infinite' }}/>
+              <span style={{ fontSize: 10, color: '#EF4444', fontWeight: 800,
+                letterSpacing: '0.1em', fontFamily: 'JetBrains Mono' }}>LIVE</span>
+            </div>
+          )}
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: sc }}/>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#E2E8F0' }}>{cam.name}</span>
+          {cam.location && <span style={{ fontSize: 11, color: '#64748B' }}>— {cam.location}</span>}
+          <span style={{ fontSize: 11, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>{cam.ip}</span>
+        </div>
+
+        {phase === 'playing' && cam.latency && (
+          <span style={{ fontSize: 10, color: '#F59E0B', fontFamily: 'JetBrains Mono' }}>
+            {Math.round(cam.latency)}ms
+          </span>
+        )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {phase === 'playing' && (
+            <span style={{ fontSize: 10, color: '#475569', fontFamily: 'JetBrains Mono' }}>
+              RTSP → HLS · 720p · 15fps
+            </span>
+          )}
+          <button onClick={onClose} style={{ color: '#E2E8F0', background: '#EF444433',
+            border: '1px solid #EF444455', borderRadius: 6, padding: '5px 14px',
+            cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+            letterSpacing: '0.06em' }}>
+            ✕ STOP & TUTUP
+          </button>
+        </div>
+      </div>
+
+      {/* Video area */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative', background: '#000', overflow: 'hidden' }}>
+
+        {/* Video element — always mounted */}
+        <video ref={videoRef} controls playsInline muted
+          style={{
+            width: '100%', height: '100%', objectFit: 'contain',
+            display: phase === 'playing' ? 'block' : 'none',
+          }}/>
+
+        {/* Starting phase */}
+        {phase === 'starting' && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ position: 'relative', width: 72, height: 72, margin: '0 auto 20px' }}>
+              <div style={{ position: 'absolute', inset: 0, border: '3px solid #1E3A5F',
+                borderTopColor: '#22C55E', borderRadius: '50%', animation: 'spin 1s linear infinite' }}/>
+              <div style={{ position: 'absolute', inset: 8, border: '2px solid #0D1B2E',
+                borderTopColor: '#38BDF8', borderRadius: '50%', animation: 'spin 1.5s linear infinite reverse' }}/>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 20 }}>📡</div>
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#E2E8F0', marginBottom: 8 }}>
+              Memulai Live Stream...
+            </div>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>
+              ffmpeg sedang terhubung ke RTSP
+            </div>
+            <div style={{ fontSize: 11, color: '#475569', fontFamily: 'JetBrains Mono' }}>
+              {elapsed}s — harap tunggu 5-15 detik
+            </div>
+            <div style={{ marginTop: 20, fontSize: 10, color: '#334155',
+              background: '#0D1B2E', border: '1px solid #1E3A5F',
+              borderRadius: 8, padding: '8px 16px', maxWidth: 360 }}>
+              💡 Pastikan RTSP URL sudah diset di form Edit Kamera
+            </div>
+          </div>
+        )}
+
+        {/* Loading HLS */}
+        {phase === 'loading' && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, border: '3px solid #1E3A5F',
+              borderTopColor: '#38BDF8', borderRadius: '50%',
+              animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}/>
+            <div style={{ fontSize: 14, color: '#E2E8F0', marginBottom: 6 }}>Memuat video player...</div>
+            <div style={{ fontSize: 11, color: '#475569' }}>HLS stream sedang diinisialisasi</div>
+          </div>
+        )}
+
+        {/* Error */}
+        {phase === 'error' && (
+          <div style={{ textAlign: 'center', maxWidth: 480, padding: '0 24px' }}>
+            <div style={{ fontSize: 52, marginBottom: 16, opacity: 0.4 }}>⚠️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#EF4444', marginBottom: 10 }}>
+              Gagal Memulai Live Stream
+            </div>
+            <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 20, lineHeight: 1.7 }}>
+              {errMsg}
+            </div>
+            <div style={{ background: '#0D1B2E', border: '1px solid #1E3A5F',
+              borderRadius: 10, padding: '14px 18px', textAlign: 'left' }}>
+              <div style={{ fontSize: 10, color: '#38BDF8', fontWeight: 700, marginBottom: 10 }}>
+                🔧 Troubleshooting
+              </div>
+              {[
+                'Pastikan RTSP URL sudah diset di form Edit Kamera',
+                `Format: rtsp://admin:password@${cam.ip}:554/Streaming/Channels/101`,
+                'Cek username & password kamera benar',
+                'Pastikan port 554 tidak diblokir firewall',
+                'Coba buka RTSP URL di VLC terlebih dahulu',
+              ].map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <span style={{ color: '#334155', fontSize: 11 }}>{i+1}.</span>
+                  <span style={{ fontSize: 11, color: '#64748B' }}>{t}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={onClose} style={{ marginTop: 20, fontSize: 11, padding: '8px 24px',
+              borderRadius: 6, background: '#1E3A5F', color: '#E2E8F0', border: 'none',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+              TUTUP
+            </button>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+      `}</style>
+    </div>
+  );
+}
