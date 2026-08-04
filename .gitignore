@@ -8,3 +8,5 @@ backend/hls/
 .DS_Store
 frontend/devserver.log
 frontend/npm-debug.log*
+backend/devserver.log
+backend/devserver.err.log
