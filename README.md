@@ -148,7 +148,7 @@ REACT_APP_API_URL=http://your-server:3002   # Backend URL (untuk production)
    - **Username** — harus diakhiri `bot`, mis. `dashboard_it_alert_bot`.
 4. BotFather mengirim **Bot Token**, contoh:
    ```
-   8572339255:AAHVG5EoZl_V_-rC9bMXg7PCS6Nl9iwkBqc
+   123456789:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
    Simpan token ini — token inilah satu-satunya "password" untuk mengontrol bot.
 
