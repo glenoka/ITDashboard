@@ -216,6 +216,9 @@ const HELP_TEXT = [
   '',
   '/cctv — daftar kamera CCTV',
   '/cctv &lt;id atau nama&gt; — kirim snapshot terbaru kamera',
+  '/procurement — list barang PR/Order yang belum datang',
+  '/checklist — checklist yang belum terselesaikan',
+  '/project — list project yang masih pending',
   '/status — ringkasan host & CCTV',
   '/stats — ringkasan sistem & bandwidth',
   '/help — bantuan ini',
@@ -300,6 +303,102 @@ async function sendSystemStats(chatId) {
   }
 }
 
+// Period key checklist — logika sama dengan frontend (checklistData.js)
+function getPeriodKey(periodType, date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  if (periodType === 'daily') return `${y}-${m}-${day}`;
+  if (periodType === 'monthly') return `${y}-${m}`;
+  if (periodType === 'yearly') return String(y);
+  if (periodType === 'weekly') {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = (tmp.getUTCDay() + 6) % 7;
+    tmp.setUTCDate(tmp.getUTCDate() - dayNum + 3);
+    const firstThursday = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
+    const week = 1 + Math.round(((tmp - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+    return `${tmp.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+  }
+  return `${y}-${m}-${day}`;
+}
+
+function formatTgDate(d) {
+  const dt = d ? new Date(d) : new Date();
+  if (isNaN(dt.getTime())) return '';
+  return String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0') + '/' + dt.getFullYear();
+}
+
+// /procurement — barang yang belum datang (status selain arrived/cancelled)
+async function sendProcurementPending(chatId) {
+  const orders = dbAll(
+    "SELECT * FROM it_orders WHERE status NOT IN ('arrived','cancelled') ORDER BY order_date ASC, id ASC"
+  );
+  const lines = [`<b>📦 List Item Pending ${formatTgDate(new Date())}</b>`, ''];
+  if (orders.length === 0) {
+    lines.push('Tidak ada barang pending. Semua sudah tiba. 🎉');
+    return telegramSendText(chatId, lines.join('\n'));
+  }
+  orders.forEach((o, i) => {
+    lines.push(`${i + 1}. ${escapeHtml(o.item_name)} (${formatTgDate(o.order_date || o.created_at)})`);
+  });
+  lines.push('', `Total: <b>${orders.length}</b> barang pending`);
+  return telegramSendText(chatId, lines.join('\n'));
+}
+
+// /checklist — checklist yang belum terselesaikan untuk periode berjalan
+async function sendChecklistPending(chatId) {
+  const PERIOD_META = [
+    { type: 'daily', label: 'Harian' },
+    { type: 'weekly', label: 'Mingguan' },
+    { type: 'monthly', label: 'Bulanan' },
+    { type: 'yearly', label: 'Tahunan' },
+  ];
+  const now = new Date();
+  const lines = ['<b>📋 Checklist Belum Selesai</b>', ''];
+  let anyPending = false;
+
+  for (const meta of PERIOD_META) {
+    const key = getPeriodKey(meta.type, now);
+    const tasks = dbAll('SELECT * FROM checklist_tasks WHERE period_type = ? ORDER BY sort ASC, id ASC', [meta.type]);
+    if (tasks.length === 0) continue;
+    const doneRows = dbAll(
+      'SELECT task_id FROM checklist_completions WHERE period_type = ? AND period_key = ? AND completed = 1',
+      [meta.type, key]
+    );
+    const doneSet = new Set(doneRows.map(r => r.task_id));
+    const pending = tasks.filter(t => !doneSet.has(t.task_id));
+    if (pending.length === 0) continue;
+    anyPending = true;
+    lines.push(`<b>${meta.label}</b> (${key}):`);
+    pending.forEach((t, i) => lines.push(`${i + 1}. ❌ ${escapeHtml(t.title)}`));
+    lines.push('');
+  }
+
+  if (!anyPending) {
+    return telegramSendText(chatId, '<b>📋 Checklist</b>\nSemua checklist sudah diselesaikan. 🎉');
+  }
+  return telegramSendText(chatId, lines.join('\n'));
+}
+
+// /project — project checklist yang masih pending (belum di-check)
+async function sendProjectPending(chatId) {
+  const projects = dbAll(
+    'SELECT * FROM project_tasks WHERE completed = 0 ORDER BY id DESC'
+  );
+  const lines = [`<b>🗂️ List Project Pending ${formatTgDate(new Date())}</b>`, ''];
+  if (projects.length === 0) {
+    lines.push('Tidak ada project pending. Semua sudah selesai. 🎉');
+    return telegramSendText(chatId, lines.join('\n'));
+  }
+  projects.forEach((p, i) => {
+    lines.push(`${i + 1}. ${escapeHtml(p.title)} (${formatTgDate(p.created_at)})`);
+    if (p.note) lines.push(`   📝 ${escapeHtml(p.note)}`);
+  });
+  lines.push('', `Total: <b>${projects.length}</b> project pending`);
+  return telegramSendText(chatId, lines.join('\n'));
+}
+
 async function handleTelegramMessage(msg) {
   const s = getTelegramSettings();
   const allowed = String(s.chat_id || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -312,6 +411,9 @@ async function handleTelegramMessage(msg) {
   if (cmd === '/start' || cmd === '/help') return telegramSendText(msg.chat.id, HELP_TEXT);
   if (cmd === '/status') return sendHostStatus(msg.chat.id);
   if (cmd === '/stats') return sendSystemStats(msg.chat.id);
+  if (cmd === '/procurement') return sendProcurementPending(msg.chat.id);
+  if (cmd === '/checklist') return sendChecklistPending(msg.chat.id);
+  if (cmd === '/project') return sendProjectPending(msg.chat.id);
   if (cmd === '/cctv') {
     const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
     if (rest.length === 0) return telegramSendText(msg.chat.id, formatCctvList(cams));

@@ -120,6 +120,9 @@ export default function TelegramSettingsModal({ onClose }) {
           <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, fontFamily: 'var(--mono)' }}>
             /cctv — daftar kamera<br />
             /cctv 1 — kirim snapshot kamera id 1<br />
+            /procurement — barang belum datang<br />
+            /checklist — checklist belum selesai<br />
+            /project — project masih pending<br />
             /status — ringkasan host &amp; CCTV<br />
             /stats — ringkasan sistem &amp; bandwidth<br />
             /help — bantuan
