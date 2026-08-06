@@ -9,7 +9,7 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
   const filtered = hosts.filter(h => {
     if (filter === 'up' && h.status !== 'UP') return false;
     if (filter === 'down' && h.status !== 'DOWN') return false;
-    if (search && !h.name.toLowerCase().includes(search.toLowerCase()) && !h.target.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !h.name.toLowerCase().includes(search.toLowerCase()) && !h.target.toLowerCase().includes(search.toLowerCase()) && !(h.category || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -65,8 +65,9 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
           <thead>
             <tr>
               <th>Name</th>
+              <th>Tipe</th>
               <th>Target</th>
-              <th>Type</th>
+              <th>Metode</th>
               <th>Status</th>
               <th>Latency</th>
               <th>Uptime</th>
@@ -78,7 +79,7 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '40px 0' }}>
+                <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '40px 0' }}>
                   {hosts.length === 0 ? 'Belum ada host. Tambahkan host pertama Anda.' : 'Tidak ada hasil.'}
                 </td>
               </tr>
@@ -114,6 +115,19 @@ function HostRow({ host, onEdit, onDelete, onDetail }) {
           <div className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: statusColor }} />
           <span style={{ fontWeight: 700, color: 'var(--text)' }}>{host.name}</span>
         </div>
+      </td>
+      <td>
+        {host.category ? (
+          <span style={{
+            fontSize: 9.5, fontWeight: 800, padding: '3px 8px', borderRadius: 999, letterSpacing: '0.04em', whiteSpace: 'nowrap',
+            background: 'rgba(16,185,129,0.12)', color: 'var(--success)',
+            border: '1px solid rgba(16,185,129,0.30)',
+          }}>
+            {host.category}
+          </span>
+        ) : (
+          <span style={{ color: 'var(--text-faint)' }}>—</span>
+        )}
       </td>
       <td style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--mono)' }}>{host.target}</td>
       <td>

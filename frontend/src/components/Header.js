@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import Icon from './Icon';
 import { ALL_TABS } from '../utils/tabs';
 
-export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onOpenSettings, hiddenTabs }) {
+export default function Header({ wsStatus, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onOpenSettings, hiddenTabs }) {
   const [time, setTime] = useState(new Date());
   const { theme, toggleTheme } = useTheme();
   useEffect(() => {
@@ -53,18 +53,6 @@ export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, a
           </div>
         </div>
 
-        {/* Center stats — only on hosts */}
-        {activePage === 'hosts' && (
-          <div className="hidden md:flex items-center gap-4">
-            <StatPill label="Total" value={stats.total} color="var(--text-muted)" />
-            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-            <StatPill label="Up" value={stats.up} color="var(--success)" />
-            <StatPill label="Down" value={stats.down} color="var(--danger)" />
-            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-            <StatPill label="Availability" value={`${stats.availability}%`} color="var(--text)" />
-            <StatPill label="Avg RTT" value={`${stats.avgLatency}ms`} color="var(--text-muted)" />
-          </div>
-        )}
         {PAGE_TITLES[activePage] && (
           <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>
             {PAGE_TITLES[activePage]}
@@ -125,14 +113,5 @@ export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, a
         })}
       </div>
     </header>
-  );
-}
-
-function StatPill({ label, value, color }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span style={{ fontSize: 9, color: 'var(--text-faint)', fontWeight: 700 }}>{label}</span>
-      <span style={{ fontSize: 13, color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-    </div>
   );
 }

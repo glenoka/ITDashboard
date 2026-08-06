@@ -74,6 +74,11 @@ export default function HostDetailModal({ host, onClose }) {
               <span style={{ fontSize: 10, background: 'var(--hover)', color: 'var(--text-muted)', padding: '3px 8px', borderRadius: 999, fontFamily: 'var(--mono)' }}>
                 {host.type === 'ip' ? 'ICMP' : 'HTTP'}
               </span>
+              {host.category && (
+                <span style={{ fontSize: 10, background: 'rgba(16,185,129,0.12)', color: 'var(--success)', padding: '3px 8px', borderRadius: 999, fontFamily: 'var(--mono)' }}>
+                  {host.category}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{host.target}</div>
           </div>

@@ -41,6 +41,7 @@ async function initDB() {
       name TEXT NOT NULL,
       target TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'ip',
+      category TEXT DEFAULT '',
       interval INTEGER NOT NULL DEFAULT 60,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -663,10 +664,10 @@ app.get('/api/hosts', (req, res) => {
 });
 
 app.post('/api/hosts', (req, res) => {
-  const { name, target, type, interval } = req.body;
+  const { name, target, type, interval, category } = req.body;
   if (!name || !target || !type) return res.status(400).json({ error: 'Missing fields' });
-  const id = dbRun('INSERT INTO hosts (name, target, type, interval) VALUES (?, ?, ?, ?)',
-    [name, target, type, interval || 60]);
+  const id = dbRun('INSERT INTO hosts (name, target, type, interval, category) VALUES (?, ?, ?, ?, ?)',
+    [name, target, type, interval || 60, category || '']);
   const host = dbGet('SELECT * FROM hosts WHERE id = ?', [parseInt(id)]);
   if (!host) return res.status(500).json({ error: 'Failed to create host' });
   scheduleHost(host);
@@ -675,9 +676,9 @@ app.post('/api/hosts', (req, res) => {
 });
 
 app.put('/api/hosts/:id', (req, res) => {
-  const { name, target, type, interval } = req.body;
-  dbRun('UPDATE hosts SET name=?, target=?, type=?, interval=? WHERE id=?',
-    [name, target, type, interval, req.params.id]);
+  const { name, target, type, interval, category } = req.body;
+  dbRun('UPDATE hosts SET name=?, target=?, type=?, interval=?, category=? WHERE id=?',
+    [name, target, type, interval, category || '', req.params.id]);
   const host = dbGet('SELECT * FROM hosts WHERE id = ?', [req.params.id]);
   if (!host) return res.status(404).json({ error: 'Not found' });
   scheduleHost(host);
@@ -895,6 +896,7 @@ const PORT = process.env.PORT || 3001;
 
 initDB().then(() => {
   initAuthTable();
+  initHostsTable();
   initCCTVTable();
   initUnifiTable();
   initRuijieTable();
@@ -916,6 +918,10 @@ initDB().then(() => {
 });
 
 // ── CCTV API ──────────────────────────────────────────────────────────────────
+
+function initHostsTable() {
+  try { db.run('ALTER TABLE hosts ADD COLUMN category TEXT DEFAULT ""'); saveDB(); } catch(e) {}
+}
 
 function initCCTVTable() {
   try { db.run('ALTER TABLE cctv_cameras ADD COLUMN location TEXT DEFAULT ""'); saveDB(); } catch(e) {}

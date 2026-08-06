@@ -9,6 +9,13 @@ const INTERVALS = [
   { value: 600, label: '10 menit' },
 ];
 
+const DEVICE_TYPES = [
+  { value: 'Switch', icon: 'Boxes' },
+  { value: 'Access Point', icon: 'Wifi' },
+  { value: 'Website', icon: 'Globe' },
+  { value: 'Gateway', icon: 'Router' },
+];
+
 const labelStyle = { fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 8 };
 
 export default function AddHostModal({ host, onClose, onSave }) {
@@ -16,11 +23,12 @@ export default function AddHostModal({ host, onClose, onSave }) {
     name: '',
     target: '',
     type: 'ip',
+    category: 'Switch',
     interval: 60,
   });
 
   useEffect(() => {
-    if (host) setForm({ name: host.name, target: host.target, type: host.type, interval: host.interval });
+    if (host) setForm({ name: host.name, target: host.target, type: host.type, category: host.category || 'Switch', interval: host.interval });
   }, [host]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
@@ -85,6 +93,54 @@ export default function AddHostModal({ host, onClose, onSave }) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Device Type */}
+          <div>
+            <label style={labelStyle}>Tipe Perangkat</label>
+            <div className="grid grid-cols-2 gap-2">
+              {DEVICE_TYPES.map(t => (
+                <button
+                  key={t.value}
+                  onClick={() => set('category', t.value)}
+                  style={{
+                    background: form.category === t.value ? 'rgba(16,185,129,0.10)' : 'var(--input-bg)',
+                    border: `1px solid ${form.category === t.value ? 'rgba(16,185,129,0.40)' : 'var(--border)'}`,
+                    borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
+                    transition: 'all 0.15s', boxShadow: form.category === t.value ? 'var(--glow)' : 'none',
+                  }}
+                >
+                  <div style={{ marginBottom: 4, color: form.category === t.value ? 'var(--success)' : 'var(--text-muted)', display: 'flex' }}>
+                    <Icon name={t.icon} size={17} />
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: form.category === t.value ? 'var(--text)' : 'var(--text-muted)', fontFamily: 'inherit' }}>{t.value}</div>
+                </button>
+              ))}
+              <button
+                onClick={() => set('category', '')}
+                style={{
+                  background: 'var(--input-bg)',
+                  border: `1px dashed ${form.category !== 'Switch' && form.category !== 'Access Point' && form.category !== 'Website' && form.category !== 'Gateway' ? 'rgba(16,185,129,0.50)' : 'var(--border)'}`,
+                  borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ marginBottom: 4, color: 'var(--text-muted)', display: 'flex' }}>
+                  <Icon name="Plus" size={17} />
+                </div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'inherit' }}>Tambah Tipe Baru</div>
+                <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 3, fontFamily: 'inherit' }}>Server, Firewall, Printer, dll</div>
+              </button>
+            </div>
+            {form.category !== 'Switch' && form.category !== 'Access Point' && form.category !== 'Website' && form.category !== 'Gateway' && (
+              <input
+                className="input"
+                style={{ marginTop: 10 }}
+                placeholder="Ketik tipe perangkat baru, contoh: Firewall, Server, Printer"
+                value={form.category}
+                onChange={e => set('category', e.target.value)}
+              />
+            )}
           </div>
 
           {/* Target */}
