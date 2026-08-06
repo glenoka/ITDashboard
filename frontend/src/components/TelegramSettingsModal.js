@@ -124,6 +124,8 @@ export default function TelegramSettingsModal({ onClose }) {
             /procurement — barang belum datang<br />
             /checklist — checklist belum selesai<br />
             /project — project masih pending<br />
+            /project_add (judul) — tambah project baru<br />
+            /ping (ip) — ping host/ip<br />
             /status — ringkasan host &amp; CCTV<br />
             /stats — ringkasan sistem &amp; bandwidth<br />
             /help — bantuan

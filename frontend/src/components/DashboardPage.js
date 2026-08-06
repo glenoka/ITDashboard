@@ -17,6 +17,7 @@ export default function DashboardPage({ onNavigate, system, bandwidth, bwHistory
   const [savingId, setSavingId] = useState(null);
   const [quickAdd, setQuickAdd] = useState('');
   const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
   const timerRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -124,7 +125,7 @@ export default function DashboardPage({ onNavigate, system, bandwidth, bwHistory
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 18 }}>
-          {activeProjects.slice(0, 8).map(task => (
+          {(projectsExpanded ? activeProjects : activeProjects.slice(0, 8)).map(task => (
             <div key={task.id}
               style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card)',
                 border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
@@ -142,9 +143,14 @@ export default function DashboardPage({ onNavigate, system, bandwidth, bwHistory
             </div>
           ))}
           {activeProjects.length > 8 && (
-            <div style={{ fontSize: 10.5, color: 'var(--text-faint)', textAlign: 'center', padding: '6px 0' }}>
-              +{activeProjects.length - 8} lainnya
-            </div>
+            <button onClick={() => setProjectsExpanded(e => !e)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                marginTop: 2, padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                background: 'var(--hover)', border: '1px solid var(--border)',
+                color: 'var(--accent)', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+              {projectsExpanded ? 'Sembunyikan' : `Lihat Semua (${activeProjects.length})`}
+              <Icon name={projectsExpanded ? 'ChevronUp' : 'ChevronDown'} size={12} />
+            </button>
           )}
         </div>
       )}

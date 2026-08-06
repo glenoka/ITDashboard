@@ -220,6 +220,8 @@ const HELP_TEXT = [
   '/procurement — list barang PR/Order yang belum datang',
   '/checklist — checklist yang belum terselesaikan',
   '/project — list project yang masih pending',
+  '/project_add &lt;judul&gt; — tambah project task baru',
+  '/ping &lt;ip&gt; — ping host/IP',
   '/status — ringkasan host & CCTV',
   '/stats — ringkasan sistem & bandwidth',
   '/help — bantuan ini',
@@ -400,6 +402,35 @@ async function sendProjectPending(chatId) {
   return telegramSendText(chatId, lines.join('\n'));
 }
 
+// /project_add <judul> — tambah task project baru dari Telegram
+async function sendProjectAdd(chatId, title) {
+  const t = String(title || '').trim();
+  if (!t) return telegramSendText(chatId, 'Gunakan: <code>/project_add &lt;judul task&gt;</code>');
+  try {
+    const id = dbRun('INSERT INTO project_tasks (title, note) VALUES (?,?)', [t, '']);
+    broadcast({ type: 'checklist_project_update' });
+    return telegramSendText(chatId, `✅ Project ditambahkan (id ${id}):\n${escapeHtml(t)}`);
+  } catch (e) {
+    return telegramSendText(chatId, 'Gagal menambahkan project: ' + e.message);
+  }
+}
+
+// /ping <ip> — ping host/IP dari Telegram
+async function sendPing(chatId, target) {
+  const t = String(target || '').trim();
+  if (!t) return telegramSendText(chatId, 'Gunakan: <code>/ping &lt;ip atau hostname&gt;</code>');
+  try {
+    const res = await ping.promise.probe(t, { timeout: 5, min_reply: 1 });
+    if (res.alive === true) {
+      const ms = res.time != null ? Number(res.time).toFixed(1) : null;
+      return telegramSendText(chatId, `<b>🟢 ${escapeHtml(t)} UP</b>\nLatency: ${ms != null ? ms + ' ms' : '—'}`);
+    }
+    return telegramSendText(chatId, `<b>🔴 ${escapeHtml(t)} DOWN</b>\nHost tidak merespons (timeout 5 detik).`);
+  } catch (e) {
+    return telegramSendText(chatId, `Gagal ping ${escapeHtml(t)}: ${e.message}`);
+  }
+}
+
 async function handleTelegramMessage(msg) {
   const s = getTelegramSettings();
   const allowed = String(s.chat_id || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -415,6 +446,8 @@ async function handleTelegramMessage(msg) {
   if (cmd === '/procurement') return sendProcurementPending(msg.chat.id);
   if (cmd === '/checklist') return sendChecklistPending(msg.chat.id);
   if (cmd === '/project') return sendProjectPending(msg.chat.id);
+  if (cmd === '/project_add') return sendProjectAdd(msg.chat.id, rest.join(' '));
+  if (cmd === '/ping') return sendPing(msg.chat.id, rest.join(' '));
   if (cmd === '/cctv') {
     const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
     if (rest.length === 0) return telegramSendText(msg.chat.id, formatCctvList(cams));
