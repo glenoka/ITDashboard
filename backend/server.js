@@ -914,6 +914,11 @@ initDB().then(() => {
     setTimeout(startUnifiSync, 3000);
     setTimeout(startRuijieSync, 3500);
     startTelegramPolling();
+    setTimeout(() => notifyTelegram(
+      `<b>🟢 IT Dashboard status ON</b>\n` +
+      `Server aktif di http://localhost:${PORT}\n` +
+      `⏰ ${new Date().toLocaleString('id-ID')}`
+    ), 1000);
   });
 });
 

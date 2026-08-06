@@ -58,7 +58,7 @@ export default function TelegramSettingsModal({ onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal pop-in" style={{ maxWidth: 440, padding: 24 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <Icon name="Send" size={18} color="var(--accent)" />
@@ -80,6 +80,7 @@ export default function TelegramSettingsModal({ onClose }) {
             <input value={chatId} onChange={e => setChatId(e.target.value)}
               placeholder="123456789" style={fieldStyle} />
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 6 }}>Grup: -100xxx. Beberapa id dipisah koma.</div>
+            <div style={{ fontSize: 10.5, color: 'var(--warning)', marginTop: 4 }}>⚠️ Chat ID adalah ID akun <b>Anda</b> (cek via @userinfobot), bukan ID bot (angka sebelum titik dua di token).</div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, padding: '8px 10px', borderRadius: 10, background: 'var(--input-bg)', border: '1px solid var(--border)' }}>
               <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Aktifkan notifikasi otomatis</span>
