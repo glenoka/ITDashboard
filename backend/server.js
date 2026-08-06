@@ -73,7 +73,19 @@ async function initDB() {
       latency REAL,
       occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS telegram_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      bot_token TEXT DEFAULT '',
+      chat_id TEXT DEFAULT '',
+      enabled INTEGER DEFAULT 0
+    );
   `);
+  saveDB();
+
+  const tg = dbGet('SELECT id FROM telegram_settings WHERE id = 1');
+  if (!tg) {
+    dbRun('INSERT INTO telegram_settings (id, bot_token, chat_id, enabled) VALUES (1, ?, ?, 0)', ['', '']);
+  }
   saveDB();
 }
 
@@ -128,6 +140,222 @@ function logStatusEvent(category, entityId, entityName, entityTarget, status, la
   } catch (e) { /* non-fatal */ }
 }
 
+// ── TELEGRAM (Notifikasi 1 arah + Perintah 2 arah) ─────────────────────────
+const TG_API = 'https://api.telegram.org';
+
+function getTelegramSettings() {
+  return dbGet('SELECT bot_token, chat_id, enabled FROM telegram_settings WHERE id = 1') || { bot_token: '', chat_id: '', enabled: 0 };
+}
+
+async function telegramApi(method, payload = {}, timeout = 15000) {
+  const { bot_token } = getTelegramSettings();
+  if (!bot_token) return null;
+  const res = await axios.post(`${TG_API}/bot${bot_token}/${method}`, payload, { timeout });
+  return res.data;
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function telegramSendText(chatId, text) {
+  try {
+    return await telegramApi('sendMessage', {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  } catch (e) {
+    console.error('[telegram] sendMessage failed:', e.message);
+    return null;
+  }
+}
+
+async function telegramSendPhoto(chatId, buffer, caption) {
+  try {
+    const { bot_token } = getTelegramSettings();
+    if (!bot_token) return null;
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('photo', new Blob([buffer], { type: 'image/jpeg' }), 'snapshot.jpg');
+    if (caption) form.append('caption', caption);
+    form.append('parse_mode', 'HTML');
+    const res = await axios.post(`${TG_API}/bot${bot_token}/sendPhoto`, form, { timeout: 30000 });
+    return res.data;
+  } catch (e) {
+    console.error('[telegram] sendPhoto failed:', e.message);
+    return null;
+  }
+}
+
+async function notifyTelegram(text) {
+  const s = getTelegramSettings();
+  if (!s.enabled || !s.bot_token || !s.chat_id) return;
+  for (const id of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
+    await telegramSendText(id, text);
+  }
+}
+
+const CATEGORY_LABELS = { host: 'HOST', cctv: 'CCTV', unifi: 'UniFi', ruijie: 'Ruijie' };
+const CATEGORY_ICONS = { host: '🖥️', cctv: '📹', unifi: '📡', ruijie: '🌐' };
+
+async function sendAlertNotification({ category, entityName, entityTarget, status }) {
+  const label = CATEGORY_LABELS[category] || String(category).toUpperCase();
+  const icon = CATEGORY_ICONS[category] || '⚠️';
+  const isDown = status === 'DOWN';
+  const target = entityTarget ? `\nTarget: ${escapeHtml(entityTarget)}` : '';
+  const text = isDown
+    ? `<b>${icon} ${label} DOWN</b>\n<b>${escapeHtml(entityName)}</b>${target}\n⏰ ${new Date().toLocaleString('id-ID')}`
+    : `<b>${icon} ${label} RECOVERED</b>\n<b>${escapeHtml(entityName)}</b>${target}\n⏰ ${new Date().toLocaleString('id-ID')}`;
+  await notifyTelegram(text);
+}
+
+const HELP_TEXT = [
+  '<b>📋 Perintah yang tersedia:</b>',
+  '',
+  '/cctv — daftar kamera CCTV',
+  '/cctv &lt;id atau nama&gt; — kirim snapshot terbaru kamera',
+  '/status — ringkasan host & CCTV',
+  '/stats — ringkasan sistem & bandwidth',
+  '/help — bantuan ini',
+].join('\n');
+
+function formatCctvList(cams) {
+  if (!cams.length) return 'Tidak ada kamera CCTV terdaftar.';
+  const lines = ['<b>📹 Daftar CCTV:</b>', ''];
+  cams.forEach(c => {
+    const st = cctvStatus[c.id];
+    const online = st ? st.online : false;
+    lines.push(`${c.id}. ${online ? '🟢' : '🔴'} <b>${escapeHtml(c.name)}</b> — ${online ? 'online' : 'offline'}`);
+  });
+  lines.push('', 'Ketik /cctv &lt;id atau nama&gt; untuk melihat snapshot');
+  return lines.join('\n');
+}
+
+async function sendCctvSnapshot(chatId, keyword, cams) {
+  const target = String(keyword || '').toLowerCase();
+  const cam = cams.find(c => String(c.id) === target)
+    || cams.find(c => String(c.name || '').toLowerCase().includes(target));
+  if (!cam) return telegramSendText(chatId, `Kamera "${keyword}" tidak ditemukan. Ketik /cctv untuk daftar.`);
+  const st = cctvStatus[cam.id];
+  try {
+    const { buffer } = await captureCameraSnapshot(cam);
+    const cap = `<b>📹 ${escapeHtml(cam.name)}</b>${cam.location ? `\n📍 ${escapeHtml(cam.location)}` : ''}${st ? `\nStatus: ${st.online ? '🟢 online' : '🔴 offline'}` : ''}`;
+    return telegramSendPhoto(chatId, buffer, cap);
+  } catch (e) {
+    return telegramSendText(chatId, `Gagal mengambil snapshot "${cam.name}". Kamera mungkin tidak terjangkau.`);
+  }
+}
+
+async function sendHostStatus(chatId) {
+  const hosts = dbAll('SELECT * FROM hosts');
+  const cams = dbAll('SELECT * FROM cctv_cameras WHERE enabled = 1');
+  let up = 0, down = 0;
+  hosts.forEach(h => { if (hostStatus[h.id] && hostStatus[h.id].status === 'UP') up++; else down++; });
+  let cUp = 0, cDown = 0;
+  cams.forEach(c => { if (cctvStatus[c.id] && cctvStatus[c.id].online) cUp++; else cDown++; });
+
+  const lines = ['<b>🖥️ Ringkasan Status:</b>', ''];
+  lines.push(`<b>Host Connection:</b> 🟢 ${up} up / 🔴 ${down} down (total ${hosts.length})`);
+  lines.push(`<b>CCTV:</b> 🟢 ${cUp} online / 🔴 ${cDown} offline (total ${cams.length})`);
+  if (down > 0) {
+    lines.push('', '<b>Host down:</b>');
+    hosts.forEach(h => {
+      if (hostStatus[h.id] && hostStatus[h.id].status === 'DOWN') lines.push(`🔴 ${escapeHtml(h.name)} — ${escapeHtml(h.target)}`);
+    });
+  }
+  if (cDown > 0) {
+    lines.push('', '<b>CCTV offline:</b>');
+    cams.forEach(c => {
+      if (!cctvStatus[c.id] || !cctvStatus[c.id].online) lines.push(`🔴 ${escapeHtml(c.name)} — ${escapeHtml(c.ip)}`);
+    });
+  }
+  return telegramSendText(chatId, lines.join('\n'));
+}
+
+function formatBps(b) {
+  b = b || 0;
+  if (b < 1024) return `${b.toFixed(0)} B/s`;
+  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB/s`;
+  return `${(b / 1048576).toFixed(2)} MB/s`;
+}
+
+async function sendSystemStats(chatId) {
+  try {
+    const [cpu, mem, disk, net] = await Promise.all([si.currentLoad(), si.mem(), si.fsSize(), si.networkStats()]);
+    const diskMain = disk[0] || {};
+    const gb = n => (n / 1073741824).toFixed(1);
+    const iface = net[0] || {};
+    const lines = [
+      '<b>🖥️ Sistem & Bandwidth:</b>', '',
+      `CPU: <b>${cpu.currentLoad.toFixed(1)}%</b>`,
+      `RAM: <b>${gb(mem.used)}GB</b> / ${gb(mem.total)}GB (free ${gb(mem.free)}GB)`,
+      `Disk: <b>${gb(diskMain.used || 0)}GB</b> / ${gb(diskMain.size || 0)}GB (free ${gb(diskMain.available || 0)}GB)`,
+      `Bandwidth: ↓ ${formatBps(iface.rx_sec)} · ↑ ${formatBps(iface.tx_sec)}`,
+    ];
+    return telegramSendText(chatId, lines.join('\n'));
+  } catch (e) {
+    return telegramSendText(chatId, 'Gagal mengambil data sistem.');
+  }
+}
+
+async function handleTelegramMessage(msg) {
+  const s = getTelegramSettings();
+  const allowed = String(s.chat_id || '').split(',').map(x => x.trim()).filter(Boolean);
+  if (!allowed.includes(String(msg.chat.id))) return;
+
+  const text = String(msg.text || '').trim();
+  const [cmdRaw, ...rest] = text.split(/\s+/);
+  const cmd = String(cmdRaw || '').toLowerCase();
+
+  if (cmd === '/start' || cmd === '/help') return telegramSendText(msg.chat.id, HELP_TEXT);
+  if (cmd === '/status') return sendHostStatus(msg.chat.id);
+  if (cmd === '/stats') return sendSystemStats(msg.chat.id);
+  if (cmd === '/cctv') {
+    const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
+    if (rest.length === 0) return telegramSendText(msg.chat.id, formatCctvList(cams));
+    return sendCctvSnapshot(msg.chat.id, rest.join(' '), cams);
+  }
+  return telegramSendText(msg.chat.id, HELP_TEXT);
+}
+
+let telegramPolling = null;
+let telegramPollingGen = 0;
+
+function stopTelegramPolling() {
+  telegramPollingGen++;
+  if (telegramPolling) { clearTimeout(telegramPolling); telegramPolling = null; }
+}
+
+function startTelegramPolling() {
+  stopTelegramPolling();
+  const s = getTelegramSettings();
+  if (!s.enabled || !s.bot_token || !s.chat_id) return;
+  const gen = ++telegramPollingGen;
+  let offset = null;
+
+  const tick = async () => {
+    if (telegramPollingGen !== gen) return;
+    try {
+      const data = await telegramApi('getUpdates', { offset, timeout: 30 }, 35000);
+      if (telegramPollingGen !== gen) return;
+      if (data && data.ok) {
+        for (const up of data.result || []) {
+          offset = up.update_id + 1;
+          const m = up.message;
+          if (m && m.text) handleTelegramMessage(m).catch(() => {});
+        }
+      } else if (data && (data.error_code === 401 || data.error_code === 404)) {
+        console.error('[telegram] polling dihentikan, token tidak valid:', data.description);
+        return;
+      }
+    } catch (e) { /* timeout / network — lanjut */ }
+    if (telegramPollingGen === gen) telegramPolling = setTimeout(tick, 500);
+  };
+  tick();
+}
+
 // Monitor a single host
 async function monitorHost(host) {
   let status = 'DOWN';
@@ -164,6 +392,7 @@ async function monitorHost(host) {
   if (prev && prev.status !== status) {
     broadcast({ type: 'alert', hostId: host.id, hostName: host.name, status, timestamp: new Date().toISOString() });
     logStatusEvent('host', host.id, host.name, host.target, status, latency);
+    sendAlertNotification({ category: 'host', entityName: host.name, entityTarget: host.target, status });
   } else if (!prev) {
     // First check ever for this host — log initial state too
     logStatusEvent('host', host.id, host.name, host.target, status, latency);
@@ -272,6 +501,49 @@ app.post('/api/auth/change-password', (req, res) => {
   const hash = hashPassword(String(new_password), salt);
   dbRun('UPDATE app_settings SET admin_password_hash=?, admin_password_salt=? WHERE id=1', [hash, salt]);
   res.json({ ok: true });
+});
+
+// ── TELEGRAM SETTINGS API ──────────────────────────────────────────────────
+
+// GET settings
+app.get('/api/notifications/telegram/settings', (req, res) => {
+  const s = getTelegramSettings();
+  res.json({ bot_token: s.bot_token || '', chat_id: s.chat_id || '', enabled: !!s.enabled });
+});
+
+// PUT settings
+app.put('/api/notifications/telegram/settings', (req, res) => {
+  const { bot_token, chat_id, enabled } = req.body || {};
+  dbRun('UPDATE telegram_settings SET bot_token=?, chat_id=?, enabled=? WHERE id=1', [
+    String(bot_token || '').trim(),
+    String(chat_id || '').trim(),
+    enabled ? 1 : 0
+  ]);
+  startTelegramPolling();
+  res.json({ ok: true });
+});
+
+// Test — kirim pesan uji coba ke chat id
+app.post('/api/notifications/telegram/test', async (req, res) => {
+  const s = getTelegramSettings();
+  if (!s.bot_token) return res.status(400).json({ ok: false, error: 'Bot Token belum diisi' });
+  if (!s.chat_id) return res.status(400).json({ ok: false, error: 'Chat ID belum diisi' });
+  try {
+    const me = await axios.get(`${TG_API}/bot${s.bot_token}/getMe`, { timeout: 10000 });
+    if (!me.data || !me.data.ok) {
+      return res.status(400).json({ ok: false, error: 'Bot Token tidak valid: ' + (me.data.description || '') });
+    }
+    for (const id of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
+      await telegramSendText(id,
+        '<b>✅ Test Notifikasi Telegram</b>\n' +
+        'Bot terhubung dengan Dashboard IT.\n' +
+        'Ketik /help untuk melihat perintah yang tersedia.'
+      );
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: 'Gagal kirim test: ' + (e.response?.data?.description || e.message) });
+  }
 });
 
 // ── REST API ──────────────────────────────────────────────────────────────────
@@ -537,6 +809,7 @@ initDB().then(() => {
     setTimeout(initCCTVMonitoring, 2000);
     setTimeout(startUnifiSync, 3000);
     setTimeout(startRuijieSync, 3500);
+    startTelegramPolling();
   });
 });
 
@@ -630,6 +903,7 @@ async function checkCCTVStatus(cam) {
   if (prev && prev.online !== online) {
     broadcast({ type: 'alert', hostId: cam.id, hostName: cam.name, status: online ? 'UP' : 'DOWN', timestamp: new Date().toISOString() });
     logStatusEvent('cctv', cam.id, cam.name, cam.ip, online ? 'UP' : 'DOWN', latency);
+    sendAlertNotification({ category: 'cctv', entityName: cam.name, entityTarget: cam.ip, status: online ? 'UP' : 'DOWN' });
   } else if (!prev) {
     logStatusEvent('cctv', cam.id, cam.name, cam.ip, online ? 'UP' : 'DOWN', latency);
   }
@@ -644,51 +918,59 @@ function initCCTVMonitoring() {
   });
 }
 
-// Proxy snapshot — handles Basic, Digest, and No Auth
+// Capture camera snapshot — handles Basic, Digest, and No Auth
+async function captureCameraSnapshot(cam) {
+  const url = cam.snapshot_url || `http://${cam.ip}/snapshot.jpg`;
+  const authType = cam.auth_type || 'none';
+
+  if (authType === 'digest' && cam.username) {
+    const client = new DigestClient(cam.username, cam.password || '');
+    const digestRes = await client.fetch(url, {
+      method: 'GET',
+      headers: { 'User-Agent': 'KOMANEKA-Monitor/1.0' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!digestRes.ok && digestRes.status >= 400) {
+      const err = new Error('Camera auth failed');
+      err.status = digestRes.status;
+      throw err;
+    }
+    const buf = await digestRes.arrayBuffer();
+    const contentType = digestRes.headers.get('content-type') || 'image/jpeg';
+    return { buffer: Buffer.from(buf), contentType };
+  }
+
+  const headers = { 'User-Agent': 'KOMANEKA-Monitor/1.0' };
+  if (authType === 'basic' && cam.username) {
+    headers['Authorization'] = 'Basic ' + Buffer.from(`${cam.username}:${cam.password || ''}`).toString('base64');
+  }
+  const response = await axios.get(url, {
+    timeout: 10000, responseType: 'arraybuffer', headers, validateStatus: () => true
+  });
+  if (response.status >= 400) {
+    const err = new Error('Camera returned error');
+    err.status = response.status;
+    throw err;
+  }
+  const contentType = response.headers['content-type'] || 'image/jpeg';
+  return { buffer: Buffer.from(response.data), contentType };
+}
+
+// Proxy snapshot — uses captureCameraSnapshot
 app.get('/api/cctv/:id/snapshot', async (req, res) => {
   const cam = dbGet('SELECT * FROM cctv_cameras WHERE id = ?', [parseInt(req.params.id)]);
   if (!cam) return res.status(404).json({ error: 'Camera not found' });
 
-  const url = cam.snapshot_url || `http://${cam.ip}/snapshot.jpg`;
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const authType = cam.auth_type || 'none';
-
-    if (authType === 'digest' && cam.username) {
-      const client = new DigestClient(cam.username, cam.password || '');
-      const digestRes = await client.fetch(url, {
-        method: 'GET',
-        headers: { 'User-Agent': 'KOMANEKA-Monitor/1.0' },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!digestRes.ok && digestRes.status >= 400) {
-        return res.status(digestRes.status).json({ error: 'Camera auth failed', status: digestRes.status });
-      }
-      const buf = await digestRes.arrayBuffer();
-      const contentType = digestRes.headers.get('content-type') || 'image/jpeg';
-      res.setHeader('Content-Type', contentType);
-      return res.send(Buffer.from(buf));
-    }
-
-    // Basic or No Auth via axios
-    const headers = { 'User-Agent': 'KOMANEKA-Monitor/1.0' };
-    if (authType === 'basic' && cam.username) {
-      headers['Authorization'] = 'Basic ' + Buffer.from(`${cam.username}:${cam.password || ''}`).toString('base64');
-    }
-    const response = await axios.get(url, {
-      timeout: 10000, responseType: 'arraybuffer', headers, validateStatus: () => true
-    });
-    if (response.status >= 400) {
-      return res.status(response.status).json({ error: 'Camera returned error', status: response.status });
-    }
-    const contentType = response.headers['content-type'] || 'image/jpeg';
+    const { buffer, contentType } = await captureCameraSnapshot(cam);
     res.setHeader('Content-Type', contentType);
-    res.send(Buffer.from(response.data));
-
-  } catch(e) {
-    res.status(503).json({ error: 'Camera unreachable', message: e.message });
+    res.send(buffer);
+  } catch (e) {
+    res.status(e.status && e.status >= 400 && e.status < 600 ? e.status : 503)
+      .json({ error: 'Camera unreachable', message: e.message });
   }
 });
 
@@ -1052,6 +1334,35 @@ async function unifiGet(endpoint) {
   return null;
 }
 
+// Send a device command to the UniFi controller (e.g. reboot)
+async function unifiCmd(endpoint, body) {
+  if (!unifiConfig) return null;
+  const base = unifiConfig.url.replace(/\/$/, '');
+  const site = unifiConfig.site || 'default';
+  const url  = `${base}/api/s/${site}/${endpoint}`;
+
+  const doRequest = async () => axios.post(url, body, {
+    httpsAgent: unifiAgent,
+    timeout: 15000,
+    validateStatus: () => true,
+    headers: { Cookie: unifiCookie || '', 'Content-Type': 'application/json' },
+  });
+
+  let res = await doRequest();
+
+  // Session expired — re-login once
+  if (res.status === 401 || res.data?.meta?.rc === 'error') {
+    const ok = await unifiLogin();
+    if (!ok) return null;
+    res = await doRequest();
+  }
+
+  if (res.status === 200 && res.data?.meta?.rc === 'ok') {
+    return res.data;
+  }
+  return null;
+}
+
 // ── Map UniFi device type to our topology types ───────────────────────────────
 function mapUnifiType(unifiType) {
   if (!unifiType) return 'switch';
@@ -1097,6 +1408,7 @@ async function syncUnifi() {
         if (prev) {
           broadcast({ type: 'alert', hostId: d.mac, hostName: d.name || d.mac,
             status: isOnline ? 'UP' : 'DOWN', timestamp: new Date().toISOString() });
+          sendAlertNotification({ category: 'unifi', entityName: d.name || d.mac, entityTarget: d.ip || '', status: isOnline ? 'UP' : 'DOWN' });
         }
       }
 
@@ -1247,6 +1559,25 @@ app.get('/api/unifi/status', (req, res) => {
   });
 });
 
+// POST /api/unifi/reboot — restart a UniFi device by MAC
+app.post('/api/unifi/reboot', async (req, res) => {
+  const { mac } = req.body || {};
+  if (!unifiConfig?.enabled || !unifiConfig?.url) return res.status(400).json({ success: false, error: 'Integrasi UniFi belum diaktifkan' });
+  if (!mac) return res.status(400).json({ success: false, error: 'MAC wajib diisi' });
+
+  const dev = unifiDevices.find(d => d.mac === mac);
+  if (!dev) return res.status(404).json({ success: false, error: 'Device tidak ditemukan. Lakukan sync terlebih dahulu.' });
+
+  try {
+    const result = await unifiCmd('cmd/devmgr', { cmd: 'restart', mac });
+    if (!result) return res.status(502).json({ success: false, error: 'Controller UniFi menolak perintah restart' });
+    logStatusEvent('unifi', mac, dev.name || mac, dev.ip || '', 'RESTART', null);
+    res.json({ success: true, message: `Perintah restart terkirim ke ${dev.name || mac}` });
+  } catch (e) {
+    res.status(500).json({ success: false, error: `Gagal restart: ${e.message}` });
+  }
+});
+
 
 // ── RUIJIE CLOUD INTEGRATION ──────────────────────────────────────────────────
 // Docs: https://cloud.ruijienetworks.com/help/#/ArticleList?id=7e875942927f4e3fb3e5736c8502c03c
@@ -1339,6 +1670,27 @@ async function ruijieGet(path, extraParams = {}) {
     res = await axios.get(`${base}${path}${path.includes('?') ? '&' : '?'}${params2}`, {
       timeout: 15000, validateStatus: () => true,
     });
+  }
+
+  if (res.status === 200 && res.data?.code === 0) return res.data;
+  return null;
+}
+
+// POST a maintenance command to Ruijie Cloud (e.g. device reboot)
+async function ruijiePost(path, body = {}) {
+  const token = await ruijieGetToken();
+  if (!token) return null;
+  const base = ruijieConfig.server.replace(/\/$/, '');
+  const url = `${base}${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+
+  let res = await axios.post(url, body, { timeout: 15000, validateStatus: () => true });
+
+  // Token expired (code 4) — refresh once and retry
+  if (res.data?.code === 4) {
+    const newToken = await ruijieGetToken(true);
+    if (!newToken) return null;
+    const url2 = `${base}${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(newToken)}`;
+    res = await axios.post(url2, body, { timeout: 15000, validateStatus: () => true });
   }
 
   if (res.status === 200 && res.data?.code === 0) return res.data;
@@ -1440,6 +1792,7 @@ async function syncRuijie() {
         if (prev) {
           broadcast({ type: 'alert', hostId: sn, hostName: devName,
             status: isOnline ? 'UP' : 'DOWN', timestamp: new Date().toISOString() });
+          sendAlertNotification({ category: 'ruijie', entityName: devName, entityTarget: dev.localIp || '', status: isOnline ? 'UP' : 'DOWN' });
         }
       }
 
@@ -1601,6 +1954,27 @@ app.get('/api/ruijie/status', (req, res) => {
     sync_interval: cfg?.sync_interval || 30, last_sync: cfg?.last_sync,
     deviceCount: ruijieDevices.length, clientCount: ruijieClients.length,
   });
+});
+
+// POST /api/ruijie/reboot — restart a Ruijie device by serial number (SN)
+// Catatan: endpoint upstream adalah best-guess (POST /service/api/maint/device/reboot { sn })
+// dan perlu disesuaikan bila respons code != 0 pada versi API akun yang dipakai.
+app.post('/api/ruijie/reboot', async (req, res) => {
+  const { sn } = req.body || {};
+  if (!ruijieConfig?.enabled || !ruijieConfig?.appid) return res.status(400).json({ success: false, error: 'Integrasi Ruijie belum diaktifkan' });
+  if (!sn) return res.status(400).json({ success: false, error: 'SN wajib diisi' });
+
+  const dev = ruijieDevices.find(d => d.sn === sn);
+  if (!dev) return res.status(404).json({ success: false, error: 'Device tidak ditemukan. Lakukan sync terlebih dahulu.' });
+
+  try {
+    const result = await ruijiePost('/service/api/maint/device/reboot', { sn });
+    if (!result) return res.status(502).json({ success: false, error: 'Cloud Ruijie menolak perintah restart (cek endpoint/payload API)' });
+    logStatusEvent('ruijie', sn, dev.name || sn, dev.ip || '', 'RESTART', null);
+    res.json({ success: true, message: `Perintah restart terkirim ke ${dev.name || sn}` });
+  } catch (e) {
+    res.status(500).json({ success: false, error: `Gagal restart: ${e.message}` });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════

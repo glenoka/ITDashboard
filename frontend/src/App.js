@@ -4,8 +4,6 @@ import Header from './components/Header';
 import SummaryCards from './components/SummaryCards';
 import MonitoringTable from './components/MonitoringTable';
 import ChartsPanel from './components/ChartsPanel';
-import SystemPanel from './components/SystemPanel';
-import BandwidthPanel from './components/BandwidthPanel';
 import AddHostModal from './components/AddHostModal';
 import HostDetailModal from './components/HostDetailModal';
 import AlertToast from './components/AlertToast';
@@ -20,9 +18,12 @@ import ProcurementPage from './components/ProcurementPage';
 import AssetPage from './components/AssetPage';
 import DashboardPage from './components/DashboardPage';
 import ChangePasswordModal from './components/ChangePasswordModal';
+import SettingsModal from './components/SettingsModal';
+import TelegramSettingsModal from './components/TelegramSettingsModal';
 import LoginPage from './components/LoginPage';
 import Icon from './components/Icon';
 import { API, useAuth } from './context/AuthContext';
+import { loadHiddenTabs, saveHiddenTabs } from './utils/tabs';
 
 // ── Notification helpers ──────────────────────────────────────────────────────
 let notifPermission = 'default';
@@ -80,6 +81,9 @@ export default function App() {
   const [detailHost, setDetailHost] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [changePasswordModal, setChangePasswordModal] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [telegramSettingsOpen, setTelegramSettingsOpen] = useState(false);
+  const [hiddenTabs, setHiddenTabs] = useState(loadHiddenTabs);
   const [wsStatus, setWsStatus] = useState('connecting');
   const [notifStatus, setNotifStatus] = useState('Notification' in window ? Notification.permission : 'unsupported');
   const wsRef = useRef(null);
@@ -87,6 +91,12 @@ export default function App() {
   const hostsRef = useRef([]);
 
   useEffect(() => { hostsRef.current = hosts; }, [hosts]);
+
+  useEffect(() => { saveHiddenTabs(hiddenTabs); }, [hiddenTabs]);
+
+  useEffect(() => {
+    if (hiddenTabs.includes(activePage)) setActivePage('dashboard');
+  }, [hiddenTabs, activePage]);
 
   useEffect(() => {
     document.title = 'Dashboard IT';
@@ -222,27 +232,21 @@ export default function App() {
         notifStatus={notifStatus} onRequestNotif={handleRequestNotif}
         activePage={activePage} onChangePage={setActivePage}
         onLogout={logout}
-        onChangePassword={() => setChangePasswordModal(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        hiddenTabs={hiddenTabs}
       />
 
       {activePage === 'dashboard' && (
-        <DashboardPage onNavigate={setActivePage} />
+        <DashboardPage onNavigate={setActivePage}
+          system={system} bandwidth={bandwidth} bwHistory={bwHistory} />
       )}
 
       {activePage === 'hosts' && (
         <main className="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
           <NotificationBanner status={notifStatus} onRequest={handleRequestNotif} />
           <SummaryCards stats={stats} />
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2">
-              <MonitoringTable hosts={hosts} onEdit={setEditHost} onDelete={handleDeleteHost} onDetail={setDetailHost}
-                onAdd={() => setShowAddModal(true)} />
-            </div>
-            <div className="space-y-6">
-              <SystemPanel system={system} />
-              <BandwidthPanel bandwidth={bandwidth} history={bwHistory} />
-            </div>
-          </div>
+          <MonitoringTable hosts={hosts} onEdit={setEditHost} onDelete={handleDeleteHost} onDetail={setDetailHost}
+            onAdd={() => setShowAddModal(true)} />
           <ChartsPanel hosts={hosts} />
         </main>
       )}
@@ -290,6 +294,19 @@ export default function App() {
       )}
       {changePasswordModal && (
         <ChangePasswordModal onClose={() => setChangePasswordModal(false)} />
+      )}
+      {settingsOpen && (
+        <SettingsModal
+          hiddenTabs={hiddenTabs}
+          onToggleTab={(id) => setHiddenTabs(prev =>
+            prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id])}
+          onClose={() => setSettingsOpen(false)}
+          onChangePassword={() => { setSettingsOpen(false); setChangePasswordModal(true); }}
+          onOpenTelegram={() => { setSettingsOpen(false); setTelegramSettingsOpen(true); }}
+        />
+      )}
+      {telegramSettingsOpen && (
+        <TelegramSettingsModal onClose={() => setTelegramSettingsOpen(false)} />
       )}
 
       {/* Alert Toasts */}

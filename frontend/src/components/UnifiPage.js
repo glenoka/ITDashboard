@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import ConfirmModal from './ConfirmModal';
 
 const API = process.env.REACT_APP_API_URL || '';
 
@@ -256,6 +257,8 @@ export default function UnifiPage({ wsRef }) {
   const [devices, setDevices] = useState([]);
   const [showSettings, setShowSettings] = useState(false); // TIDAK auto-open
   const [clientModal, setClientModal] = useState(null);
+  const [rebootTarget, setRebootTarget] = useState(null);
+  const [rebooting, setRebooting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [filterOnline, setFilterOnline] = useState('all');
@@ -310,6 +313,32 @@ export default function UnifiPage({ wsRef }) {
       .catch(() => {})
       .finally(() => setSyncing(false));
   }
+
+  function doRestart() {
+    if (!rebootTarget || rebooting) return;
+    const dev = rebootTarget;
+    setRebooting(true);
+    axios.post(API + '/api/unifi/reboot', { mac: dev.mac })
+      .then((res) => {
+        setRebootTarget(null);
+        if (res.data && !res.data.success) alert(res.data.error || 'Gagal mengirim perintah restart');
+        setTimeout(load, 1500);
+      })
+      .catch((e) => alert('Gagal restart: ' + (e?.response?.data?.error || e.message)))
+      .finally(() => setRebooting(false));
+  }
+
+  const restartBtn = (dev) => (
+    <button
+      disabled={rebooting || !dev.online}
+      onClick={() => setRebootTarget(dev)}
+      title="Restart perangkat"
+      style={{ fontSize: 9, padding: '3px 12px', borderRadius: 999, background: 'rgba(239,68,68,0.12)',
+        color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', cursor: 'pointer',
+        fontFamily: 'inherit', fontWeight: 600, opacity: (!dev.online || rebooting) ? 0.4 : 1 }}>
+      {rebooting ? '...' : 'Restart'}
+    </button>
+  );
 
   const connected = !!status.connected;
   const enabled = !!status.enabled;
@@ -535,6 +564,7 @@ export default function UnifiPage({ wsRef }) {
                             Klien
                           </button>
                         ) : null}
+                        {restartBtn(dev)}
                       </div>
                     </div>
                   );
@@ -573,6 +603,7 @@ export default function UnifiPage({ wsRef }) {
                           Klien
                         </button>
                       ) : null}
+                      {restartBtn(dev)}
                     </div>
                   );
                 })}
@@ -621,6 +652,7 @@ export default function UnifiPage({ wsRef }) {
                                 Klien
                               </button>
                             ) : null}
+                            {restartBtn(dev)}
                           </td>
                         </tr>
                       );
@@ -635,6 +667,15 @@ export default function UnifiPage({ wsRef }) {
 
       {showSettings ? <SettingsModal onClose={() => setShowSettings(false)} onSaved={load} /> : null}
       {clientModal ? <ClientModal device={clientModal} onClose={() => setClientModal(null)} /> : null}
+      {rebootTarget ? (
+        <ConfirmModal
+          title="Restart Perangkat?"
+          message={`Perangkat "${rebootTarget.name}" akan di-restart. Klien yang terhubung akan terputus sementara (±1-2 menit). Lanjutkan?`}
+          confirmText="Restart"
+          onConfirm={doRestart}
+          onCancel={() => !rebooting && setRebootTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

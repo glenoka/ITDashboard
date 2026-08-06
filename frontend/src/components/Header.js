@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import Icon from './Icon';
+import { ALL_TABS } from '../utils/tabs';
 
-export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onChangePassword }) {
+export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, activePage, onChangePage, onLogout, onOpenSettings, hiddenTabs }) {
   const [time, setTime] = useState(new Date());
   const { theme, toggleTheme } = useTheme();
   useEffect(() => {
@@ -27,18 +28,7 @@ export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, a
     checklist: 'Checklist IT',
   };
 
-  const TABS = [
-    { id: 'dashboard', icon: 'Gauge', label: 'Dashboard' },
-    { id: 'hosts', icon: 'Monitor', label: 'Host Connection' },
-    { id: 'cctv', icon: 'Video', label: 'CCTV' },
-    { id: 'unifi', icon: 'Network', label: 'UniFi' },
-    { id: 'ruijie', icon: 'Router', label: 'Ruijie' },
-    { id: 'procurement', icon: 'Package', label: 'PR/Order' },
-    { id: 'asset', icon: 'Boxes', label: 'Aset IT' },
-    { id: 'sop', icon: 'FileText', label: 'SOP' },
-    { id: 'checklist', icon: 'ListChecks', label: 'Checklist' },
-    { id: 'history', icon: 'History', label: 'History' },
-  ];
+  const TABS = ALL_TABS.filter(t => !hiddenTabs.includes(t.id));
 
   return (
     <header style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 40 }}>
@@ -102,7 +92,7 @@ export default function Header({ wsStatus, stats, notifStatus, onRequestNotif, a
             style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 9px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <Icon name={theme === 'dark' ? 'Sun' : 'Moon'} size={14} />
           </button>
-          <button onClick={onChangePassword} title="Ubah password"
+          <button onClick={onOpenSettings} title="Pengaturan"
             style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '6px 9px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <Icon name="Settings" size={14} />
           </button>

@@ -260,9 +260,10 @@ export default function HistoryPage({ wsRef }) {
 
         <div style={{ display: 'flex', gap: 4 }}>
           {[
-            { v: 'all',  label: 'Semua', color: 'var(--text-muted)' },
-            { v: 'UP',   label: '● UP',   color: 'var(--success)' },
-            { v: 'DOWN', label: '● DOWN', color: 'var(--danger)' },
+            { v: 'all',     label: 'Semua', color: 'var(--text-muted)' },
+            { v: 'UP',      label: '● UP',   color: 'var(--success)' },
+            { v: 'DOWN',    label: '● DOWN', color: 'var(--danger)' },
+            { v: 'RESTART', label: '⟳ RESTART', color: 'var(--violet)' },
           ].map(s => (
             <button key={s.v} onClick={() => setStatus(s.v)}
               style={{ fontSize: 10.5, padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
@@ -295,8 +296,9 @@ export default function HistoryPage({ wsRef }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
             {events.map((ev, i) => {
               const meta = CATEGORY_META[ev.category] || { label: ev.category, icon: '•', color: 'var(--text-muted)' };
+              const isRestart = ev.status === 'RESTART';
               const isUp = ev.status === 'UP';
-              const sc = isUp ? 'var(--success)' : 'var(--danger)';
+              const sc = isRestart ? 'var(--violet)' : (isUp ? 'var(--success)' : 'var(--danger)');
               return (
                 <div key={ev.id}
                   style={{
@@ -310,7 +312,7 @@ export default function HistoryPage({ wsRef }) {
                     background: sc + '15', border: `1.5px solid ${sc}44`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0 }}>
-                    <Icon name={isUp ? 'ArrowUp' : 'ArrowDown'} size={13} color={sc} />
+                    <Icon name={isRestart ? 'RotateCw' : (isUp ? 'ArrowUp' : 'ArrowDown')} size={13} color={sc} />
                   </div>
 
                   {/* Main info */}
@@ -331,7 +333,7 @@ export default function HistoryPage({ wsRef }) {
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <span style={{ fontSize: 10, color: sc, fontWeight: 800, letterSpacing: '0.04em' }}>
-                        {isUp ? 'KEMBALI ONLINE' : 'TERPUTUS / OFFLINE'}
+                        {isRestart ? 'RESTART DIMULAI' : (isUp ? 'KEMBALI ONLINE' : 'TERPUTUS / OFFLINE')}
                       </span>
                       {ev.latency != null && (
                         <span style={{ fontSize: 10, color: 'var(--warning)', fontFamily: 'var(--mono)' }}>{Math.round(ev.latency)}ms</span>

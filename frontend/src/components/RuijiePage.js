@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import ConfirmModal from './ConfirmModal';
 
 const API = process.env.REACT_APP_API_URL || '';
 
@@ -178,6 +179,8 @@ export default function RuijiePage({ wsRef }) {
   const [status, setStatus] = useState({ connected: false, enabled: false, server: '', last_sync: null });
   const [devices, setDevices] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [rebootTarget, setRebootTarget] = useState(null);
+  const [rebooting, setRebooting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [filterOnline, setFilterOnline] = useState('all');
@@ -229,6 +232,32 @@ export default function RuijiePage({ wsRef }) {
       .catch(() => {})
       .finally(() => setSyncing(false));
   }
+
+  function doRestart() {
+    if (!rebootTarget || rebooting) return;
+    const dev = rebootTarget;
+    setRebooting(true);
+    axios.post(API + '/api/ruijie/reboot', { sn: dev.sn })
+      .then((res) => {
+        setRebootTarget(null);
+        if (res.data && !res.data.success) alert(res.data.error || 'Gagal mengirim perintah restart');
+        setTimeout(load, 1500);
+      })
+      .catch((e) => alert('Gagal restart: ' + (e?.response?.data?.error || e.message)))
+      .finally(() => setRebooting(false));
+  }
+
+  const restartBtn = (dev) => (
+    <button
+      disabled={rebooting || !dev.online}
+      onClick={() => setRebootTarget(dev)}
+      title="Restart perangkat"
+      style={{ fontSize: 9, padding: '3px 12px', borderRadius: 999, background: 'rgba(239,68,68,0.12)',
+        color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', cursor: 'pointer',
+        fontFamily: 'inherit', fontWeight: 600, opacity: (!dev.online || rebooting) ? 0.4 : 1 }}>
+      {rebooting ? '...' : 'Restart'}
+    </button>
+  );
 
   const connected = !!status.connected;
   const enabled = !!status.enabled;
@@ -416,8 +445,9 @@ export default function RuijiePage({ wsRef }) {
                           </div>
                         ))}
                       </div>
-                      <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', background: 'var(--card-2)' }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dev.online ? (dev.clients || 0) + ' klien' : 'Perangkat offline'}</span>
+                      <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', background: 'var(--card-2)', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flex: 1 }}>{dev.online ? (dev.clients || 0) + ' klien' : 'Perangkat offline'}</span>
+                        {restartBtn(dev)}
                       </div>
                     </div>
                   );
@@ -449,6 +479,7 @@ export default function RuijiePage({ wsRef }) {
                         <span style={{ fontSize: 9, fontWeight: 800, color: sc }}>{dev.onlineStatus || (dev.online ? 'Online' : 'Offline')}</span>
                       </div>
                       <div style={{ width: 70, textAlign: 'right', fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{dev.online ? (dev.clients || 0) + ' klien' : '-'}</div>
+                      <div style={{ flexShrink: 0 }}>{restartBtn(dev)}</div>
                     </div>
                   );
                 })}
@@ -461,7 +492,7 @@ export default function RuijiePage({ wsRef }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                   <thead>
                     <tr style={{ background: 'var(--card-2)', borderBottom: '1px solid var(--border)' }}>
-                      {['Status', 'Nama', 'Tipe', 'IP', 'SN/MAC', 'Model', 'Firmware', 'Group', 'Klien'].map((h) => (
+                      {['Status', 'Nama', 'Tipe', 'IP', 'SN/MAC', 'Model', 'Firmware', 'Group', 'Klien', ''].map((h) => (
                         <th key={h} style={{ textAlign: 'left', padding: '9px 12px', color: 'var(--text-muted)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -486,6 +517,7 @@ export default function RuijiePage({ wsRef }) {
                           <td style={{ padding: '8px 12px', color: 'var(--text-faint)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>{dev.version || '-'}</td>
                           <td style={{ padding: '8px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dev.group || '-'}</td>
                           <td style={{ padding: '8px 12px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'var(--mono)' }}>{dev.online ? (dev.clients || 0) : '-'}</td>
+                          <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{restartBtn(dev)}</td>
                         </tr>
                       );
                     })}
@@ -498,6 +530,15 @@ export default function RuijiePage({ wsRef }) {
       ) : null}
 
       {showSettings ? <SettingsModal onClose={() => setShowSettings(false)} onSaved={load} /> : null}
+      {rebootTarget ? (
+        <ConfirmModal
+          title="Restart Perangkat?"
+          message={`Perangkat "${rebootTarget.name}" akan di-restart. Klien yang terhubung akan terputus sementara (±1-2 menit). Lanjutkan?`}
+          confirmText="Restart"
+          onConfirm={doRestart}
+          onCancel={() => !rebooting && setRebootTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

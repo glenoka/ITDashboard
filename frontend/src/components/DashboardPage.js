@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import Icon from './Icon';
+import SystemPanel from './SystemPanel';
+import BandwidthPanel from './BandwidthPanel';
 
 const API = process.env.REACT_APP_API_URL || '';
 
-export default function DashboardPage({ onNavigate }) {
+export default function DashboardPage({ onNavigate, system, bandwidth, bwHistory }) {
   const [hosts, setHosts] = useState([]);
   const [cctv, setCctv] = useState([]);
   const [unifiDevices, setUnifiDevices] = useState([]);
@@ -187,6 +189,15 @@ export default function DashboardPage({ onNavigate }) {
           items={oldOrders.map(o => ({ id: o.id, name: o.item_name,
             sub: `${o.no_pr || ''}${o.vendor ? ' — ' + o.vendor : ''}`.trim(),
             badge: `${daysSince(o.order_date || o.created_at)}h` }))} />
+      </div>
+
+      {/* ── MONITORING SERVER ───────────────────────────────────── */}
+      <div style={{ marginTop: 18 }}>
+        <SectionHeader icon="Server" label="Monitoring Server" count={0} countColor="var(--info)" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
+          <SystemPanel system={system} />
+          <BandwidthPanel bandwidth={bandwidth} history={bwHistory} />
+        </div>
       </div>
 
       {loading && (

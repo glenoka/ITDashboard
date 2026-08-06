@@ -19,6 +19,9 @@ Aplikasi monitoring IT terpusat untuk tim IT Support: dashboard operasional, mon
 - ✅ Inventaris Aset IT (nama barang, brand, pembelian, lokasi)
 - ✅ Export Markdown untuk daftar order/aset/history
 - ✅ Login single-admin (password env `ADMIN_PASSWORD`, default `admin`) + ubah password via UI
+- ✅ Notifikasi & perintah **Telegram 2 arah**: alert DOWN/RECOVERED (host/CCTV/UniFi/Ruijie) + `/cctv`, `/cctv <id|nama>` (kirim snapshot), `/status`, `/stats`, `/help`
+- ✅ Tab bisa disembunyikan/ditampilkan (ikon gear → Pengaturan), tersimpan di browser
+- ✅ Restart perangkat UniFi/Ruijie langsung dari UI (dengan konfirmasi, tercatat di history sebagai RESTART)
 - ✅ Dark/light theme, responsive
 
 ## Stack
@@ -86,6 +89,23 @@ REACT_APP_API_URL=http://your-server:3001   # Backend URL (untuk production)
 - Token tersimpan di `localStorage` (key `dashboard_it_token`), TTL 24 jam.
 - Semua endpoint `/api/*` dilindungi `requireAuth` (header `Authorization: Bearer <token>` atau query `?token=` untuk `<img>`/snapshot).
 
+### Notifikasi & Perintah Telegram
+
+1. Buat bot di Telegram: cari **@BotFather** → `/newbot` → simpan **Bot Token**.
+2. Tekan **Start** pada bot, lalu cek **Chat ID** via **@userinfobot** (atau dari `getUpdates`).
+3. Di dashboard: ikon ⚙ → **Pengaturan** → **Notifikasi Telegram** → isi token + chat id, aktifkan, klik **Kirim Uji Coba**.
+4. Setelah aktif, bot mengirim alert otomatis saat host/CCTV/UniFi/Ruijie down/recover, dan bisa dipanggil 2 arah:
+
+| Perintah | Aksi |
+|----------|------|
+| `/cctv` | Daftar kamera CCTV + status |
+| `/cctv <id/nama>` | Kirim snapshot terbaru kamera |
+| `/status` | Ringkasan host & CCTV |
+| `/stats` | Ringkasan CPU/RAM/Disk & bandwidth |
+| `/help` | Daftar perintah |
+
+- Implementasi: long polling `getUpdates` di backend (tanpa webhook), tabel `telegram_settings` (id=1), endpoint `GET/PUT /api/notifications/telegram/settings` + `POST .../test`. Bot hanya merespons `chat_id` yang terdaftar. Setiap deployment harus memakai bot token sendiri (satu token = satu server polling).
+
 ### Nginx (Production)
 
 ```nginx
@@ -119,16 +139,18 @@ server {
 
 | Tab | Deskripsi |
 |-----|-----------|
-| DASHBOARD | Ringkasan operasional: checklist project, down list semua kategori, PR lama |
-| HOST CONNECTION | Status host real-time, charts, bandwidth, sistem, kelola host |
+| DASHBOARD | Ringkasan operasional: checklist project, down list semua kategori, PR lama, Monitoring Server (sistem & bandwidth) |
+| HOST CONNECTION | Status host real-time, charts, kelola host |
 | CCTV | Grid kamera, snapshot, live stream |
-| UNIFI | Perangkat UniFi Controller (status/klien/sync) |
-| RUIJIE | Perangkat Ruijie Cloud (AppID + Key) |
+| UNIFI | Perangkat UniFi Controller (status/klien/sync/restart) |
+| RUIJIE | Perangkat Ruijie Cloud (AppID + Key, restart) |
 | PR/ORDER | Market list IT — barang di-PR/di-order belum datang |
 | ASET IT | Inventaris aset (auto-create saat order "TIBA") |
 | SOP | SOP & policy IT — dokumen dinamis, editable via UI |
 | CHECKLIST | Checklist harian/mingguan/bulanan/tahunan/event + kelola tugas + project |
-| HISTORY | History downtime terpusat, filter & export |
+| HISTORY | History downtime terpusat, filter (termasuk RESTART) & export |
+
+> Tab bisa disembunyikan/ditampilkan: ikon ⚙ → **Pengaturan** → toggle per menu (tersimpan per browser; tab Dashboard selalu tampil).
 
 ## Data Retention
 
