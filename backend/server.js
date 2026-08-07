@@ -159,16 +159,41 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-async function telegramSendText(chatId, text) {
+async function telegramSendText(chatId, text, extra) {
   try {
     return await telegramApi('sendMessage', {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
       disable_web_page_preview: true,
+      ...(extra || {}),
     });
   } catch (e) {
     console.error('[telegram] sendMessage failed:', e.message);
+    return null;
+  }
+}
+
+async function telegramAnswerCallbackQuery(callbackQueryId, text) {
+  try {
+    return await telegramApi('answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      ...(text ? { text } : {}),
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
+async function telegramPinMessage(chatId, messageId) {
+  try {
+    return await telegramApi('pinChatMessage', {
+      chat_id: chatId,
+      message_id: messageId,
+      disable_notification: true,
+    });
+  } catch (e) {
+    console.error('[telegram] pinChatMessage failed:', e.message);
     return null;
   }
 }
@@ -190,11 +215,11 @@ async function telegramSendPhoto(chatId, buffer, caption) {
   }
 }
 
-async function notifyTelegram(text) {
+async function notifyTelegram(text, extra) {
   const s = getTelegramSettings();
   if (!s.enabled || !s.bot_token || !s.chat_id) return;
   for (const id of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
-    await telegramSendText(id, text);
+    await telegramSendText(id, text, extra);
   }
 }
 
@@ -221,10 +246,14 @@ const HELP_TEXT = [
   '/checklist — checklist yang belum terselesaikan',
   '/project — list project yang masih pending',
   '/project_add &lt;judul&gt; — tambah project task baru',
+  '/order_add — mulai tambah order (ikuti pertanyaan PR & item)',
   '/ping &lt;ip&gt; — ping host/IP',
   '/status — ringkasan host & CCTV',
   '/stats — ringkasan sistem & bandwidth',
+  '/cancel — batalkan input yang sedang berjalan',
   '/help — bantuan ini',
+  '',
+  '<b>➕ Tambah Order:</b> tekan tombol <b>📦 PR/Order</b> di menu, lalu <b>Tambah Order</b>, ikuti pertanyaan kode PR & item.',
 ].join('\n');
 
 function formatCctvList(cams) {
@@ -431,33 +460,217 @@ async function sendPing(chatId, target) {
   }
 }
 
+// ── Tambah Order via Telegram (guided 2 langkah) ─────────────────────────────
+const telegramOrderState = new Map(); // chatId -> { step, no_pr, timer }
+
+function clearTelegramOrderState(chatId) {
+  const st = telegramOrderState.get(chatId);
+  if (st && st.timer) clearTimeout(st.timer);
+  telegramOrderState.delete(chatId);
+}
+
+function setTelegramOrderState(chatId, st) {
+  clearTelegramOrderState(chatId);
+  st.timer = setTimeout(() => telegramOrderState.delete(chatId), 10 * 60 * 1000);
+  telegramOrderState.set(chatId, st);
+}
+
+async function sendProcurementAddStart(chatId) {
+  setTelegramOrderState(chatId, { step: 'waiting_pr', no_pr: '' });
+  return telegramSendText(
+    chatId,
+    '<b>➕ Tambah Order</b>\n\nMasukkan <b>kode PR</b> (contoh: PR-2026-001):\nKetik /cancel untuk batal.',
+    { reply_markup: { inline_keyboard: [[{ text: '🚫 Batal', callback_data: 'pr_cancel' }]] } }
+  );
+}
+
+// Proses jawaban teks untuk flow tambah order; return true bila pesan dipakai
+async function consumeTelegramOrderInput(chatId, text) {
+  const st = telegramOrderState.get(chatId);
+  if (!st) return false;
+
+  if (st.step === 'waiting_pr') {
+    const noPr = String(text || '').trim();
+    if (!noPr) {
+      await telegramSendText(chatId, '⚠️ Kode PR tidak boleh kosong.\nMasukkan kode PR (contoh: PR-2026-001):');
+      return true;
+    }
+    setTelegramOrderState(chatId, { step: 'waiting_item', no_pr: noPr });
+    await telegramSendText(
+      chatId,
+      `✅ Kode PR: <b>${escapeHtml(noPr)}</b>\n\nSekarang masukkan <b>nama item / barang</b>:\nKetik /cancel untuk batal.`,
+      { reply_markup: { inline_keyboard: [[{ text: '🚫 Batal', callback_data: 'pr_cancel' }]] } }
+    );
+    return true;
+  }
+
+  if (st.step === 'waiting_item') {
+    const itemName = String(text || '').trim();
+    if (!itemName) {
+      await telegramSendText(chatId, '⚠️ Nama item tidak boleh kosong.\nMasukkan nama item / barang:');
+      return true;
+    }
+    try {
+      const id = dbRun(
+        "INSERT INTO it_orders (no_pr, item_name, qty, status) VALUES (?,?,1,'pr')",
+        [st.no_pr, itemName]
+      );
+      const order = dbGet('SELECT * FROM it_orders WHERE id = ?', [parseInt(id)]);
+      broadcast({ type: 'order_added', order });
+      clearTelegramOrderState(chatId);
+      await telegramSendText(
+        chatId,
+        `✅ Order ditambahkan (id ${id}):\n📄 Kode PR: <b>${escapeHtml(st.no_pr)}</b>\n📦 Item: <b>${escapeHtml(itemName)}</b> (qty 1)`,
+        { reply_markup: orderActionKeyboard() }
+      );
+    } catch (e) {
+      await telegramSendText(chatId, '❌ Gagal menambahkan order: ' + e.message);
+    }
+    return true;
+  }
+
+  clearTelegramOrderState(chatId);
+  return true;
+}
+
 async function handleTelegramMessage(msg) {
   const s = getTelegramSettings();
   const allowed = String(s.chat_id || '').split(',').map(x => x.trim()).filter(Boolean);
   if (!allowed.includes(String(msg.chat.id))) return;
 
   const text = String(msg.text || '').trim();
+
+  // Jika flow tambah order sedang berjalan, pesan teks dipakai sebagai jawaban
+  if (text && !text.startsWith('/') && telegramOrderState.has(msg.chat.id)) {
+    return consumeTelegramOrderInput(msg.chat.id, text);
+  }
+  if (text.startsWith('/')) clearTelegramOrderState(msg.chat.id);
+
   const [cmdRaw, ...rest] = text.split(/\s+/);
   const cmd = String(cmdRaw || '').toLowerCase();
 
-  if (cmd === '/start' || cmd === '/help') return telegramSendText(msg.chat.id, HELP_TEXT);
+  if (cmd === '/cancel') return telegramSendText(msg.chat.id, '🚫 Dibatalkan.');
+  if (cmd === '/start' || cmd === '/help') {
+    const sent = await telegramSendText(msg.chat.id, HELP_TEXT, { reply_markup: TG_KEYBOARD_MAIN });
+    if (sent && sent.ok && sent.result && sent.result.message_id) {
+      await telegramPinMessage(msg.chat.id, sent.result.message_id);
+    }
+    return sent;
+  }
   if (cmd === '/status') return sendHostStatus(msg.chat.id);
   if (cmd === '/stats') return sendSystemStats(msg.chat.id);
   if (cmd === '/procurement') return sendProcurementPending(msg.chat.id);
+  if (cmd === '/order_add') return sendProcurementAddStart(msg.chat.id);
   if (cmd === '/checklist') return sendChecklistPending(msg.chat.id);
   if (cmd === '/project') return sendProjectPending(msg.chat.id);
   if (cmd === '/project_add') return sendProjectAdd(msg.chat.id, rest.join(' '));
   if (cmd === '/ping') return sendPing(msg.chat.id, rest.join(' '));
   if (cmd === '/cctv') {
     const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
-    if (rest.length === 0) return telegramSendText(msg.chat.id, formatCctvList(cams));
+    if (rest.length === 0) return telegramSendText(msg.chat.id, formatCctvList(cams), { reply_markup: cctvKeyboard(cams) });
     return sendCctvSnapshot(msg.chat.id, rest.join(' '), cams);
   }
-  return telegramSendText(msg.chat.id, HELP_TEXT);
+  return telegramSendText(msg.chat.id, HELP_TEXT, { reply_markup: TG_KEYBOARD_MAIN });
 }
 
 let telegramPolling = null;
 let telegramPollingGen = 0;
+
+// ── Inline keyboard ──────────────────────────────────────────────────────────
+const TG_KEYBOARD_MAIN = {
+  inline_keyboard: [
+    [
+      { text: '📹 CCTV', callback_data: 'cctv' },
+      { text: '🖥️ Status', callback_data: 'status' },
+    ],
+    [
+      { text: '📦 PR/Order', callback_data: 'procurement' },
+      { text: '📋 Checklist', callback_data: 'checklist' },
+    ],
+    [
+      { text: '🗂️ Project', callback_data: 'project' },
+      { text: '⚙️ Bantuan', callback_data: 'help' },
+    ],
+  ],
+};
+
+function cctvKeyboard(cams) {
+  return {
+    inline_keyboard: cams.map(c => [{ text: `${c.id}. ${c.name}`, callback_data: `cctv:${c.id}` }]),
+  };
+}
+
+function procurementKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '➕ Tambah Order', callback_data: 'pr_add' },
+        { text: '📦 List Order', callback_data: 'pr_list' },
+      ],
+      [{ text: '🏠 Menu Utama', callback_data: 'home' }],
+    ],
+  };
+}
+
+function orderActionKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '➕ Tambah Lagi', callback_data: 'pr_add' },
+        { text: '📦 List Order', callback_data: 'pr_list' },
+      ],
+      [{ text: '🏠 Menu Utama', callback_data: 'home' }],
+    ],
+  };
+}
+
+// Handle tombol inline (callback_query) — jalankan perintah yang sama seperti /...
+async function handleTelegramCallback(cq) {
+  const s = getTelegramSettings();
+  const allowed = String(s.chat_id || '').split(',').map(x => x.trim()).filter(Boolean);
+  if (!allowed.includes(String(cq.message.chat.id))) return;
+
+  const data = String(cq.data || '');
+  const chatId = cq.message.chat.id;
+  const id = cq.id;
+
+  if (data === 'cctv') {
+    const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
+    await telegramAnswerCallbackQuery(id, 'Pilih kamera');
+    return telegramSendText(chatId, '<b>📹 Pilih Kamera:</b>', { reply_markup: cctvKeyboard(cams) });
+  }
+  if (data.startsWith('cctv:')) {
+    const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
+    await telegramAnswerCallbackQuery(id, 'Mengambil snapshot...');
+    return sendCctvSnapshot(chatId, data.slice(5), cams);
+  }
+  if (data === 'status') { await telegramAnswerCallbackQuery(id, 'Mengambil status...'); return sendHostStatus(chatId); }
+  if (data === 'procurement') {
+    await telegramAnswerCallbackQuery(id);
+    return telegramSendText(chatId, '<b>📦 PR / Order</b>\n\nPilih aksi:', { reply_markup: procurementKeyboard() });
+  }
+  if (data === 'pr_list') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendProcurementPending(chatId); }
+  if (data === 'pr_add') {
+    await telegramAnswerCallbackQuery(id);
+    return sendProcurementAddStart(chatId);
+  }
+  if (data === 'pr_cancel') {
+    clearTelegramOrderState(chatId);
+    await telegramAnswerCallbackQuery(id, 'Dibatalkan');
+    return telegramSendText(chatId, '🚫 Dibatalkan.', { reply_markup: procurementKeyboard() });
+  }
+  if (data === 'checklist') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendChecklistPending(chatId); }
+  if (data === 'project') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendProjectPending(chatId); }
+  if (data === 'help' || data === 'home') {
+    await telegramAnswerCallbackQuery(id);
+    const sent = await telegramSendText(chatId, HELP_TEXT, { reply_markup: TG_KEYBOARD_MAIN });
+    if (sent && sent.ok && sent.result && sent.result.message_id) {
+      await telegramPinMessage(chatId, sent.result.message_id);
+    }
+    return sent;
+  }
+  await telegramAnswerCallbackQuery(id);
+}
 
 function stopTelegramPolling() {
   telegramPollingGen++;
@@ -481,6 +694,8 @@ function startTelegramPolling() {
           offset = up.update_id + 1;
           const m = up.message;
           if (m && m.text) handleTelegramMessage(m).catch(() => {});
+          const cq = up.callback_query;
+          if (cq) handleTelegramCallback(cq).catch(() => {});
         }
       } else if (data && (data.error_code === 401 || data.error_code === 404)) {
         console.error('[telegram] polling dihentikan, token tidak valid:', data.description);
@@ -673,8 +888,8 @@ app.post('/api/notifications/telegram/test', async (req, res) => {
       await telegramSendText(id,
         '<b>✅ Test Notifikasi Telegram</b>\n' +
         'Bot terhubung dengan Dashboard IT.\n' +
-        'Ketik /help untuk melihat perintah yang tersedia.'
-      );
+        'Ketik /help atau tekan tombol di bawah untuk melihat perintah yang tersedia.',
+        { reply_markup: TG_KEYBOARD_MAIN });
     }
     res.json({ ok: true });
   } catch (e) {
@@ -950,7 +1165,8 @@ initDB().then(() => {
     setTimeout(() => notifyTelegram(
       `<b>🟢 IT Dashboard status ON</b>\n` +
       `Server aktif di http://localhost:${PORT}\n` +
-      `⏰ ${new Date().toLocaleString('id-ID')}`
+      `⏰ ${new Date().toLocaleString('id-ID')}`,
+      { reply_markup: TG_KEYBOARD_MAIN }
     ), 1000);
   });
 });
