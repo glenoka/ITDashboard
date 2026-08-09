@@ -122,7 +122,6 @@ export default function TelegramSettingsModal({ onClose }) {
             /cctv — daftar kamera<br />
             /cctv 1 — kirim snapshot kamera id 1<br />
             /procurement — barang belum datang<br />
-            /checklist — checklist project belum selesai (tekan ✅)<br />
             /project — project masih pending (tekan ✅ untuk tick)<br />
             /project_add (judul) — tambah project baru<br />
             /order_add — tambah order (PR &amp; item)<br />

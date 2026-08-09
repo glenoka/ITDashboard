@@ -186,7 +186,6 @@ Bot hanya bisa mengirim pesan ke akun/group yang sudah "menekan Start". Untuk me
 | `/cctv` | Daftar kamera CCTV + status |
 | `/cctv <id atau nama>` | Kirim snapshot terbaru kamera |
 | `/procurement` | List barang PR/Order yang belum datang |
-| `/checklist` | Checklist project yang belum selesai (tekan ✅ untuk menandai selesai) |
 | `/project` | List project yang masih pending (tekan ✅ untuk menandai selesai) |
 | `/project_add <judul>` | Tambah project task baru |
 | `/order_add` | Tambah order baru (guided input: kode PR → nama item) |

@@ -278,7 +278,6 @@ const HELP_TEXT = [
   '/cctv — daftar kamera CCTV',
   '/cctv &lt;id atau nama&gt; — kirim snapshot terbaru kamera',
   '/procurement — list barang PR/Order yang belum datang',
-  '/checklist — checklist project yang belum selesai (tekan ✅ untuk tick)',
   '/project — list project yang masih pending (tekan ✅ untuk tick)',
   '/project_add &lt;judul&gt; — tambah project task baru',
   '/order_add — mulai tambah order (ikuti pertanyaan PR & item)',
@@ -292,7 +291,7 @@ const HELP_TEXT = [
   '/help — bantuan ini',
   '',
   '<b>➕ Tambah Order:</b> tekan tombol <b>📦 PR/Order</b> di menu, lalu <b>Tambah Order</b>, ikuti pertanyaan kode PR & item.',
-  '<b>✅ Checklist/Project:</b> pesan <b>/checklist</b> & <b>/project</b> punya tombol untuk menandai selesai.',
+  '<b>✅ Project:</b> pesan <b>/project</b> punya tombol untuk menandai selesai.',
 ].join('\n');
 
 function formatCctvList(cams) {
@@ -395,29 +394,6 @@ async function sendProcurementPending(chatId) {
   });
   lines.push('', `Total: <b>${orders.length}</b> barang pending`);
   return telegramSendText(chatId, lines.join('\n'));
-}
-
-// /checklist — checklist project yang belum selesai (periode harian/mingguan/bulanan/tahunan tidak ditampilkan)
-function renderChecklistPendingMessage() {
-  const projects = dbAll('SELECT * FROM project_tasks WHERE completed = 0 ORDER BY id DESC');
-  const lines = [`<b>📋 Checklist Project Pending ${formatTgDate(new Date())}</b>`, ''];
-  if (projects.length === 0) {
-    return { text: '<b>📋 Checklist</b>\nSemua project sudah selesai. 🎉', keyboard: null };
-  }
-  const buttons = [];
-  projects.forEach((p, i) => {
-    lines.push(`${i + 1}. ${escapeHtml(p.title)} (${formatTgDate(p.created_at)})`);
-    if (p.note) lines.push(`   📝 ${escapeHtml(p.note)}`);
-    buttons.push([{ text: `✅ ${p.title}`, callback_data: `prj:${p.id}` }]);
-  });
-  lines.push('', `Total: <b>${projects.length}</b> project pending`);
-  lines.push('', 'Tekan tombol ✅ untuk menandai selesai.');
-  return { text: lines.join('\n'), keyboard: { inline_keyboard: buttons } };
-}
-
-async function sendChecklistPending(chatId) {
-  const msg = renderChecklistPendingMessage();
-  return telegramSendText(chatId, msg.text, msg.keyboard ? { reply_markup: msg.keyboard } : undefined);
 }
 
 // Render daftar project pending + tombol ✅ (dipakai untuk kirim & edit pesan)
@@ -711,7 +687,6 @@ async function handleTelegramMessage(msg) {
   }
   if (cmd === '/procurement') return sendProcurementPending(msg.chat.id);
   if (cmd === '/order_add') return sendProcurementAddStart(msg.chat.id);
-  if (cmd === '/checklist') return sendChecklistPending(msg.chat.id);
   if (cmd === '/project') return sendProjectPending(msg.chat.id);
   if (cmd === '/project_add') return sendProjectAdd(msg.chat.id, rest.join(' '));
   if (cmd === '/ping') return sendPing(msg.chat.id, rest.join(' '));
@@ -735,10 +710,9 @@ const TG_KEYBOARD_MAIN = {
     ],
     [
       { text: '📦 PR/Order', callback_data: 'procurement' },
-      { text: '📋 Checklist', callback_data: 'checklist' },
+      { text: '🗂️ Project', callback_data: 'project' },
     ],
     [
-      { text: '🗂️ Project', callback_data: 'project' },
       { text: '⚙️ Bantuan', callback_data: 'help' },
     ],
   ],
@@ -809,7 +783,6 @@ async function handleTelegramCallback(cq) {
     await telegramAnswerCallbackQuery(id, 'Dibatalkan');
     return telegramSendText(chatId, '🚫 Dibatalkan.', { reply_markup: procurementKeyboard() });
   }
-  if (data === 'checklist') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendChecklistPending(chatId); }
   if (data === 'project') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendProjectPending(chatId); }
   if (data.startsWith('prj:')) {
     const pid = parseInt(data.split(':')[1], 10);
