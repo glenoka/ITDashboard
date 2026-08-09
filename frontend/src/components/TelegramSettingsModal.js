@@ -122,15 +122,21 @@ export default function TelegramSettingsModal({ onClose }) {
             /cctv — daftar kamera<br />
             /cctv 1 — kirim snapshot kamera id 1<br />
             /procurement — barang belum datang<br />
-            /checklist — checklist belum selesai<br />
-            /project — project masih pending<br />
+            /checklist — checklist project belum selesai (tekan ✅)<br />
+            /project — project masih pending (tekan ✅ untuk tick)<br />
             /project_add (judul) — tambah project baru<br />
+            /order_add — tambah order (PR &amp; item)<br />
             /ping (ip) — ping host/ip<br />
             /status — ringkasan host &amp; CCTV<br />
             /stats — ringkasan sistem &amp; bandwidth<br />
+            /report — laporan harian<br />
+            /backup — kirim backup DB<br />
             /help — bantuan
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 8 }}>
+            Backup DB otomatis jam 02:00 &amp; laporan harian jam 07:00 (rotasi backup: 14 file).
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4 }}>
             Cara setup: buat bot di @BotFather → salin token → tekan Start pada bot → cek Chat ID via @userinfobot.
           </div>
         </div>

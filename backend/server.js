@@ -11,6 +11,7 @@ const si = require('systeminformation');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const app = express();
 const server = http.createServer(app);
@@ -198,6 +199,40 @@ async function telegramPinMessage(chatId, messageId) {
   }
 }
 
+// Update pesan yang sudah terkirim (untuk checklist/project tick di tempat)
+async function telegramEditMessageText(chatId, messageId, text, replyMarkup) {
+  try {
+    const payload = {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    };
+    if (replyMarkup !== undefined) payload.reply_markup = replyMarkup;
+    return await telegramApi('editMessageText', payload);
+  } catch (e) {
+    console.error('[telegram] editMessageText failed:', e.message);
+    return null;
+  }
+}
+
+async function telegramSendDocument(chatId, buffer, filename, caption) {
+  try {
+    const { bot_token } = getTelegramSettings();
+    if (!bot_token) return null;
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('document', new Blob([buffer]), filename);
+    if (caption) form.append('caption', caption);
+    const res = await axios.post(`${TG_API}/bot${bot_token}/sendDocument`, form, { timeout: 60000 });
+    return res.data;
+  } catch (e) {
+    console.error('[telegram] sendDocument failed:', e.message);
+    return null;
+  }
+}
+
 async function telegramSendPhoto(chatId, buffer, caption) {
   try {
     const { bot_token } = getTelegramSettings();
@@ -243,17 +278,20 @@ const HELP_TEXT = [
   '/cctv — daftar kamera CCTV',
   '/cctv &lt;id atau nama&gt; — kirim snapshot terbaru kamera',
   '/procurement — list barang PR/Order yang belum datang',
-  '/checklist — checklist yang belum terselesaikan',
-  '/project — list project yang masih pending',
+  '/checklist — checklist project yang belum selesai (tekan ✅ untuk tick)',
+  '/project — list project yang masih pending (tekan ✅ untuk tick)',
   '/project_add &lt;judul&gt; — tambah project task baru',
   '/order_add — mulai tambah order (ikuti pertanyaan PR & item)',
   '/ping &lt;ip&gt; — ping host/IP',
   '/status — ringkasan host & CCTV',
   '/stats — ringkasan sistem & bandwidth',
+  '/report — laporan harian (host, CCTV, order, checklist, project, sistem)',
+  '/backup — kirim backup DB sekarang',
   '/cancel — batalkan input yang sedang berjalan',
   '/help — bantuan ini',
   '',
   '<b>➕ Tambah Order:</b> tekan tombol <b>📦 PR/Order</b> di menu, lalu <b>Tambah Order</b>, ikuti pertanyaan kode PR & item.',
+  '<b>✅ Checklist/Project:</b> pesan <b>/checklist</b> & <b>/project</b> punya tombol untuk menandai selesai.',
 ].join('\n');
 
 function formatCctvList(cams) {
@@ -335,26 +373,6 @@ async function sendSystemStats(chatId) {
   }
 }
 
-// Period key checklist — logika sama dengan frontend (checklistData.js)
-function getPeriodKey(periodType, date) {
-  const d = date || new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  if (periodType === 'daily') return `${y}-${m}-${day}`;
-  if (periodType === 'monthly') return `${y}-${m}`;
-  if (periodType === 'yearly') return String(y);
-  if (periodType === 'weekly') {
-    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const dayNum = (tmp.getUTCDay() + 6) % 7;
-    tmp.setUTCDate(tmp.getUTCDate() - dayNum + 3);
-    const firstThursday = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
-    const week = 1 + Math.round(((tmp - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-    return `${tmp.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-  }
-  return `${y}-${m}-${day}`;
-}
-
 function formatTgDate(d) {
   const dt = d ? new Date(d) : new Date();
   if (isNaN(dt.getTime())) return '';
@@ -378,57 +396,50 @@ async function sendProcurementPending(chatId) {
   return telegramSendText(chatId, lines.join('\n'));
 }
 
-// /checklist — checklist yang belum terselesaikan untuk periode berjalan
-async function sendChecklistPending(chatId) {
-  const PERIOD_META = [
-    { type: 'daily', label: 'Harian' },
-    { type: 'weekly', label: 'Mingguan' },
-    { type: 'monthly', label: 'Bulanan' },
-    { type: 'yearly', label: 'Tahunan' },
-  ];
-  const now = new Date();
-  const lines = ['<b>📋 Checklist Belum Selesai</b>', ''];
-  let anyPending = false;
-
-  for (const meta of PERIOD_META) {
-    const key = getPeriodKey(meta.type, now);
-    const tasks = dbAll('SELECT * FROM checklist_tasks WHERE period_type = ? ORDER BY sort ASC, id ASC', [meta.type]);
-    if (tasks.length === 0) continue;
-    const doneRows = dbAll(
-      'SELECT task_id FROM checklist_completions WHERE period_type = ? AND period_key = ? AND completed = 1',
-      [meta.type, key]
-    );
-    const doneSet = new Set(doneRows.map(r => r.task_id));
-    const pending = tasks.filter(t => !doneSet.has(t.task_id));
-    if (pending.length === 0) continue;
-    anyPending = true;
-    lines.push(`<b>${meta.label}</b> (${key}):`);
-    pending.forEach((t, i) => lines.push(`${i + 1}. ❌ ${escapeHtml(t.title)}`));
-    lines.push('');
-  }
-
-  if (!anyPending) {
-    return telegramSendText(chatId, '<b>📋 Checklist</b>\nSemua checklist sudah diselesaikan. 🎉');
-  }
-  return telegramSendText(chatId, lines.join('\n'));
-}
-
-// /project — project checklist yang masih pending (belum di-check)
-async function sendProjectPending(chatId) {
-  const projects = dbAll(
-    'SELECT * FROM project_tasks WHERE completed = 0 ORDER BY id DESC'
-  );
-  const lines = [`<b>🗂️ List Project Pending ${formatTgDate(new Date())}</b>`, ''];
+// /checklist — checklist project yang belum selesai (periode harian/mingguan/bulanan/tahunan tidak ditampilkan)
+function renderChecklistPendingMessage() {
+  const projects = dbAll('SELECT * FROM project_tasks WHERE completed = 0 ORDER BY id DESC');
+  const lines = [`<b>📋 Checklist Project Pending ${formatTgDate(new Date())}</b>`, ''];
   if (projects.length === 0) {
-    lines.push('Tidak ada project pending. Semua sudah selesai. 🎉');
-    return telegramSendText(chatId, lines.join('\n'));
+    return { text: '<b>📋 Checklist</b>\nSemua project sudah selesai. 🎉', keyboard: null };
   }
+  const buttons = [];
   projects.forEach((p, i) => {
     lines.push(`${i + 1}. ${escapeHtml(p.title)} (${formatTgDate(p.created_at)})`);
     if (p.note) lines.push(`   📝 ${escapeHtml(p.note)}`);
+    buttons.push([{ text: `✅ ${p.title}`, callback_data: `prj:${p.id}` }]);
   });
   lines.push('', `Total: <b>${projects.length}</b> project pending`);
-  return telegramSendText(chatId, lines.join('\n'));
+  lines.push('', 'Tekan tombol ✅ untuk menandai selesai.');
+  return { text: lines.join('\n'), keyboard: { inline_keyboard: buttons } };
+}
+
+async function sendChecklistPending(chatId) {
+  const msg = renderChecklistPendingMessage();
+  return telegramSendText(chatId, msg.text, msg.keyboard ? { reply_markup: msg.keyboard } : undefined);
+}
+
+// Render daftar project pending + tombol ✅ (dipakai untuk kirim & edit pesan)
+function renderProjectPendingMessage() {
+  const projects = dbAll('SELECT * FROM project_tasks WHERE completed = 0 ORDER BY id DESC');
+  const lines = [`<b>🗂️ List Project Pending ${formatTgDate(new Date())}</b>`, ''];
+  if (projects.length === 0) {
+    return { text: 'Tidak ada project pending. Semua sudah selesai. 🎉', keyboard: null };
+  }
+  const buttons = [];
+  projects.forEach((p, i) => {
+    lines.push(`${i + 1}. ${escapeHtml(p.title)} (${formatTgDate(p.created_at)})`);
+    if (p.note) lines.push(`   📝 ${escapeHtml(p.note)}`);
+    buttons.push([{ text: `✅ ${p.title}`, callback_data: `prj:${p.id}` }]);
+  });
+  lines.push('', `Total: <b>${projects.length}</b> project pending`);
+  lines.push('', 'Tekan tombol ✅ untuk menandai selesai.');
+  return { text: lines.join('\n'), keyboard: { inline_keyboard: buttons } };
+}
+
+async function sendProjectPending(chatId) {
+  const msg = renderProjectPendingMessage();
+  return telegramSendText(chatId, msg.text, msg.keyboard ? { reply_markup: msg.keyboard } : undefined);
 }
 
 // /project_add <judul> — tambah task project baru dari Telegram
@@ -533,6 +544,118 @@ async function consumeTelegramOrderInput(chatId, text) {
   return true;
 }
 
+// ── Backup DB harian + kirim ke Telegram ─────────────────────────────────────
+const BACKUP_DIR = path.join(__dirname, 'backups');
+const BACKUP_KEEP = 14;
+
+function ensureBackupDir() {
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+
+async function runDailyBackup() {
+  try {
+    saveDB();
+    const buf = fs.readFileSync(DB_PATH);
+    const gz = zlib.gzipSync(buf, { level: 9 });
+    const now = new Date();
+    const ymd = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const fname = `noc-backup-${ymd}.db.gz`;
+    ensureBackupDir();
+    fs.writeFileSync(path.join(BACKUP_DIR, fname), gz);
+
+    // rotasi: hanya simpan BACKUP_KEEP file terbaru
+    const files = fs.readdirSync(BACKUP_DIR).filter(f => /^noc-backup-.*\.db\.gz$/.test(f)).sort();
+    while (files.length > BACKUP_KEEP) {
+      const del = files.shift();
+      fs.unlinkSync(path.join(BACKUP_DIR, del));
+    }
+
+    const s = getTelegramSettings();
+    if (s.enabled && s.bot_token && s.chat_id) {
+      const caption = `<b>🗄️ Backup Database</b>\n📅 ${formatTgDate(now)}\n💾 ${(gz.length / 1048576).toFixed(2)} MB (gzip)\n🗑️ Rotasi: keep ${BACKUP_KEEP} file`;
+      for (const id of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
+        await telegramSendDocument(id, gz, fname, caption);
+      }
+    }
+    console.log(`[backup] selesai: ${fname} (${(gz.length / 1048576).toFixed(2)} MB gzip)`);
+    return fname;
+  } catch (e) {
+    console.error('[backup] gagal:', e.message);
+    return null;
+  }
+}
+
+// ── Daily report ──────────────────────────────────────────────────────────────
+async function buildDailyReport() {
+  const lines = [`<b>📊 Laporan Harian ${formatTgDate(new Date())}</b>`, ''];
+
+  const hosts = dbAll('SELECT * FROM hosts');
+  let up = 0, down = 0;
+  const downList = [];
+  hosts.forEach(h => {
+    if (hostStatus[h.id] && hostStatus[h.id].status === 'UP') up++;
+    else { down++; downList.push(h); }
+  });
+  lines.push(`🖥️ <b>Host:</b> 🟢 ${up} / 🔴 ${down} (total ${hosts.length})`);
+  downList.slice(0, 3).forEach(h => lines.push(`  🔴 ${escapeHtml(h.name)}`));
+
+  const cams = dbAll('SELECT * FROM cctv_cameras WHERE enabled = 1');
+  let cUp = 0, cDown = 0;
+  cams.forEach(c => { if (cctvStatus[c.id] && cctvStatus[c.id].online) cUp++; else cDown++; });
+  lines.push(`📹 <b>CCTV:</b> 🟢 ${cUp} / 🔴 ${cDown} (total ${cams.length})`);
+
+  const orders = dbAll("SELECT * FROM it_orders WHERE status NOT IN ('arrived','cancelled') ORDER BY order_date ASC, id ASC");
+  lines.push(`📦 <b>PR/Order pending:</b> ${orders.length}`);
+  orders.slice(0, 3).forEach(o => lines.push(`  • ${escapeHtml(o.item_name)}${o.no_pr ? ` (${escapeHtml(o.no_pr)})` : ''}`));
+
+  const proj = dbGet('SELECT COUNT(*) as c FROM project_tasks WHERE completed = 0');
+  lines.push(`🗂️ <b>Checklist/Project pending:</b> ${proj ? proj.c : 0}`);
+
+  lines.push('');
+  try {
+    const [cpu, mem, disk] = await Promise.all([si.currentLoad(), si.mem(), si.fsSize()]);
+    const gb = n => (n / 1073741824).toFixed(1);
+    lines.push(`💻 CPU ${cpu.currentLoad.toFixed(0)}% · RAM ${gb(mem.used)}/${gb(mem.total)}GB · Disk ${gb((disk[0] || {}).used || 0)}/${gb((disk[0] || {}).size || 0)}GB`);
+  } catch (e) { /* abaikan jika sistem tidak bisa dibaca */ }
+
+  return lines.join('\n');
+}
+
+async function sendDailyReport(chatId) {
+  const text = await buildDailyReport();
+  return telegramSendText(chatId, text, { reply_markup: TG_KEYBOARD_MAIN });
+}
+
+async function broadcastDailyReport() {
+  const s = getTelegramSettings();
+  if (!s.enabled || !s.bot_token || !s.chat_id) return;
+  const text = await buildDailyReport();
+  for (const id of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
+    await telegramSendText(id, text, { reply_markup: TG_KEYBOARD_MAIN });
+  }
+}
+
+// Scheduler: backup 02:00 & report 07:00 (waktu lokal), sekali per hari
+function startDailyJobs() {
+  let lastBackupDate = null;
+  let lastReportDate = null;
+  const check = () => {
+    const now = new Date();
+    const ymd = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    if (hhmm >= '02:00' && lastBackupDate !== ymd) {
+      lastBackupDate = ymd;
+      runDailyBackup();
+    }
+    if (hhmm >= '07:00' && lastReportDate !== ymd) {
+      lastReportDate = ymd;
+      broadcastDailyReport();
+    }
+  };
+  check();
+  setInterval(check, 60000);
+}
+
 async function handleTelegramMessage(msg) {
   const s = getTelegramSettings();
   const allowed = String(s.chat_id || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -559,6 +682,12 @@ async function handleTelegramMessage(msg) {
   }
   if (cmd === '/status') return sendHostStatus(msg.chat.id);
   if (cmd === '/stats') return sendSystemStats(msg.chat.id);
+  if (cmd === '/report') return sendDailyReport(msg.chat.id);
+  if (cmd === '/backup') {
+    const done = await runDailyBackup();
+    if (done) return telegramSendText(msg.chat.id, `✅ Backup berhasil: <code>${done}</code>`);
+    return telegramSendText(msg.chat.id, '❌ Backup gagal. Cek log server.');
+  }
   if (cmd === '/procurement') return sendProcurementPending(msg.chat.id);
   if (cmd === '/order_add') return sendProcurementAddStart(msg.chat.id);
   if (cmd === '/checklist') return sendChecklistPending(msg.chat.id);
@@ -661,6 +790,18 @@ async function handleTelegramCallback(cq) {
   }
   if (data === 'checklist') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendChecklistPending(chatId); }
   if (data === 'project') { await telegramAnswerCallbackQuery(id, 'Mengambil data...'); return sendProjectPending(chatId); }
+  if (data.startsWith('prj:')) {
+    const pid = parseInt(data.split(':')[1], 10);
+    dbRun('UPDATE project_tasks SET completed=1, completed_at=? WHERE id=?', [new Date().toISOString(), pid]);
+    broadcast({ type: 'checklist_project_update' });
+    const task = dbGet('SELECT * FROM project_tasks WHERE id = ?', [pid]);
+    await telegramAnswerCallbackQuery(id, task ? `✅ ${task.title}` : 'Selesai');
+    const msg = renderProjectPendingMessage();
+    if (cq.message && cq.message.message_id) {
+      await telegramEditMessageText(chatId, cq.message.message_id, msg.text, msg.keyboard || { inline_keyboard: [] });
+    }
+    return;
+  }
   if (data === 'help' || data === 'home') {
     await telegramAnswerCallbackQuery(id);
     const sent = await telegramSendText(chatId, HELP_TEXT, { reply_markup: TG_KEYBOARD_MAIN });
@@ -1162,6 +1303,7 @@ initDB().then(() => {
     setTimeout(startUnifiSync, 3000);
     setTimeout(startRuijieSync, 3500);
     startTelegramPolling();
+    startDailyJobs();
     setTimeout(() => notifyTelegram(
       `<b>🟢 IT Dashboard status ON</b>\n` +
       `Server aktif di http://localhost:${PORT}\n` +

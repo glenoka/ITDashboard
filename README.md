@@ -186,11 +186,24 @@ Bot hanya bisa mengirim pesan ke akun/group yang sudah "menekan Start". Untuk me
 | `/cctv` | Daftar kamera CCTV + status |
 | `/cctv <id atau nama>` | Kirim snapshot terbaru kamera |
 | `/procurement` | List barang PR/Order yang belum datang |
-| `/checklist` | Checklist yang belum terselesaikan (periode berjalan) |
-| `/project` | List project yang masih pending |
+| `/checklist` | Checklist project yang belum selesai (tekan ✅ untuk menandai selesai) |
+| `/project` | List project yang masih pending (tekan ✅ untuk menandai selesai) |
+| `/project_add <judul>` | Tambah project task baru |
+| `/order_add` | Tambah order baru (guided input: kode PR → nama item) |
+| `/ping <ip>` | Ping host/IP |
 | `/status` | Ringkasan host & CCTV |
 | `/stats` | Ringkasan CPU/RAM/Disk & bandwidth |
+| `/report` | Laporan harian (host, CCTV, order, checklist, project, sistem) |
+| `/backup` | Kirim backup database ke Telegram sekarang |
+| `/cancel` | Batalkan input yang sedang berjalan |
 | `/help` | Daftar perintah |
+
+**Menu inline:** pesan `/start`/`/help` menampilkan keyboard (CCTV, Status, PR/Order, Checklist, Project, Bantuan) yang di-*pin* agar selalu tampil di atas chat.
+
+### Backup & Laporan Otomatis
+
+- **Backup DB** setiap pukul **02:00** (waktu server): `noc.db` di-*gzip* → dikirim ke chat Telegram → disimpan di `backend/backups/` dengan **rotasi 14 file** terbaru. Perintah `/backup` untuk backup manual.
+- **Laporan harian** setiap pukul **07:00**: ringkasan status host/CCTV, PR/Order pending, checklist/project belum selesai, serta CPU/RAM/Disk. Perintah `/report` untuk laporan on-demand.
 
 ### Cara Kerja & Catatan Penting
 
