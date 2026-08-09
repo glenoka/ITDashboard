@@ -131,6 +131,7 @@ export default function TelegramSettingsModal({ onClose }) {
             /stats — ringkasan sistem &amp; bandwidth<br />
             /report — laporan harian<br />
             /backup — kirim backup DB<br />
+            /restart — restart server backend<br />
             /help — bantuan
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 8 }}>

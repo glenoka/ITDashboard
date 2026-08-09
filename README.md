@@ -195,6 +195,7 @@ Bot hanya bisa mengirim pesan ke akun/group yang sudah "menekan Start". Untuk me
 | `/stats` | Ringkasan CPU/RAM/Disk & bandwidth |
 | `/report` | Laporan harian (host, CCTV, order, checklist, project, sistem) |
 | `/backup` | Kirim backup database ke Telegram sekarang |
+| `/restart` | Restart server backend |
 | `/cancel` | Batalkan input yang sedang berjalan |
 | `/help` | Daftar perintah |
 

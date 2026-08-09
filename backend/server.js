@@ -287,6 +287,7 @@ const HELP_TEXT = [
   '/stats — ringkasan sistem & bandwidth',
   '/report — laporan harian (host, CCTV, order, checklist, project, sistem)',
   '/backup — kirim backup DB sekarang',
+  '/restart — restart server backend',
   '/cancel — batalkan input yang sedang berjalan',
   '/help — bantuan ini',
   '',
@@ -635,6 +636,21 @@ async function broadcastDailyReport() {
   }
 }
 
+// ── Restart server dari Telegram ─────────────────────────────────────────────
+function restartServer() {
+  const bootDelay = 2500;
+  const code = `setTimeout(() => { require(${JSON.stringify(__filename)}); }, ${bootDelay});`;
+  const child = spawn(process.execPath, ['-e', code], {
+    detached: true,
+    stdio: 'ignore',
+    cwd: __dirname,
+    env: process.env,
+  });
+  child.unref();
+  console.log('[restart] proses baru dijadwalkan, proses lama berhenti...');
+  setTimeout(() => process.exit(0), 1000);
+}
+
 // Scheduler: backup 02:00 & report 07:00 (waktu lokal), sekali per hari
 function startDailyJobs() {
   let lastBackupDate = null;
@@ -687,6 +703,11 @@ async function handleTelegramMessage(msg) {
     const done = await runDailyBackup();
     if (done) return telegramSendText(msg.chat.id, `✅ Backup berhasil: <code>${done}</code>`);
     return telegramSendText(msg.chat.id, '❌ Backup gagal. Cek log server.');
+  }
+  if (cmd === '/restart') {
+    await telegramSendText(msg.chat.id, '🔄 Server sedang di-restart, mohon tunggu...');
+    setTimeout(() => restartServer(), 800);
+    return;
   }
   if (cmd === '/procurement') return sendProcurementPending(msg.chat.id);
   if (cmd === '/order_add') return sendProcurementAddStart(msg.chat.id);
