@@ -149,6 +149,36 @@ function getTelegramSettings() {
   return dbGet('SELECT bot_token, chat_id, enabled FROM telegram_settings WHERE id = 1') || { bot_token: '', chat_id: '', enabled: 0 };
 }
 
+const TELEGRAM_STATUS_CATEGORIES = ['host', 'cctv', 'unifi', 'ruijie', 'procurement', 'project'];
+
+function initTelegramStatusSettings() {
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS telegram_status_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      host INTEGER DEFAULT 1,
+      cctv INTEGER DEFAULT 1,
+      unifi INTEGER DEFAULT 1,
+      ruijie INTEGER DEFAULT 1,
+      procurement INTEGER DEFAULT 1,
+      project INTEGER DEFAULT 1
+    )`);
+    const existing = dbGet('SELECT id FROM telegram_status_settings WHERE id = 1');
+    if (!existing) {
+      dbRun('INSERT INTO telegram_status_settings (id) VALUES (1)');
+    }
+    saveDB();
+  } catch (e) { console.error('[Telegram] initTelegramStatusSettings error:', e.message); }
+}
+
+function getTelegramStatusSettings() {
+  const row = dbGet('SELECT * FROM telegram_status_settings WHERE id = 1');
+  const defaults = { host: 1, cctv: 1, unifi: 1, ruijie: 1, procurement: 1, project: 1 };
+  if (!row) return defaults;
+  const out = {};
+  TELEGRAM_STATUS_CATEGORIES.forEach(c => { out[c] = row[c] !== undefined ? !!row[c] : true; });
+  return out;
+}
+
 async function telegramApi(method, payload = {}, timeout = 15000) {
   const { bot_token } = getTelegramSettings();
   if (!bot_token) return null;
@@ -282,7 +312,7 @@ const HELP_TEXT = [
   '/project_add &lt;judul&gt; — tambah project task baru',
   '/order_add — mulai tambah order (ikuti pertanyaan PR & item)',
   '/ping &lt;ip&gt; — ping host/IP',
-  '/status — ringkasan host & CCTV',
+  '/status — ringkasan host, CCTV, UniFi, Ruijie, PR/Order & project',
   '/stats — ringkasan sistem & bandwidth',
   '/report — laporan harian (host, CCTV, order, checklist, project, sistem)',
   '/backup — kirim backup DB sekarang',
@@ -322,28 +352,61 @@ async function sendCctvSnapshot(chatId, keyword, cams) {
 }
 
 async function sendHostStatus(chatId) {
-  const hosts = dbAll('SELECT * FROM hosts');
-  const cams = dbAll('SELECT * FROM cctv_cameras WHERE enabled = 1');
-  let up = 0, down = 0;
-  hosts.forEach(h => { if (hostStatus[h.id] && hostStatus[h.id].status === 'UP') up++; else down++; });
-  let cUp = 0, cDown = 0;
-  cams.forEach(c => { if (cctvStatus[c.id] && cctvStatus[c.id].online) cUp++; else cDown++; });
-
+  const st = getTelegramStatusSettings();
   const lines = ['<b>🖥️ Ringkasan Status:</b>', ''];
-  lines.push(`<b>Host Connection:</b> 🟢 ${up} up / 🔴 ${down} down (total ${hosts.length})`);
-  lines.push(`<b>CCTV:</b> 🟢 ${cUp} online / 🔴 ${cDown} offline (total ${cams.length})`);
-  if (down > 0) {
-    lines.push('', '<b>Host down:</b>');
-    hosts.forEach(h => {
-      if (hostStatus[h.id] && hostStatus[h.id].status === 'DOWN') lines.push(`🔴 ${escapeHtml(h.name)} — ${escapeHtml(h.target)}`);
-    });
+
+  if (st.host) {
+    const hosts = dbAll('SELECT * FROM hosts');
+    let up = 0, down = 0;
+    hosts.forEach(h => { if (hostStatus[h.id] && hostStatus[h.id].status === 'UP') up++; else down++; });
+    lines.push(`<b>Host Connection:</b> 🟢 ${up} up / 🔴 ${down} down (total ${hosts.length})`);
+    if (down > 0) {
+      lines.push('', '<b>Host down:</b>');
+      hosts.forEach(h => {
+        if (hostStatus[h.id] && hostStatus[h.id].status === 'DOWN') lines.push(`🔴 ${escapeHtml(h.name)} — ${escapeHtml(h.target)}`);
+      });
+    } else {
+      lines.push('', '✅ Semua host normal.');
+    }
   }
-  if (cDown > 0) {
-    lines.push('', '<b>CCTV offline:</b>');
-    cams.forEach(c => {
-      if (!cctvStatus[c.id] || !cctvStatus[c.id].online) lines.push(`🔴 ${escapeHtml(c.name)} — ${escapeHtml(c.ip)}`);
-    });
+
+  if (st.cctv) {
+    const cams = dbAll('SELECT * FROM cctv_cameras WHERE enabled = 1');
+    let cUp = 0, cDown = 0;
+    cams.forEach(c => { if (cctvStatus[c.id] && cctvStatus[c.id].online) cUp++; else cDown++; });
+    lines.push(`<b>CCTV:</b> 🟢 ${cUp} online / 🔴 ${cDown} offline (total ${cams.length})`);
   }
+
+  if (st.unifi) {
+    if (unifiConfig?.enabled && unifiDevices.length) {
+      const uUp = unifiDevices.filter(d => d.online).length;
+      const uDown = unifiDevices.length - uUp;
+      lines.push(`<b>UniFi:</b> 🟢 ${uUp} online / 🔴 ${uDown} offline (total ${unifiDevices.length})`);
+    } else {
+      lines.push('<b>UniFi:</b> ⚪ tidak aktif');
+    }
+  }
+
+  if (st.ruijie) {
+    if (ruijieConfig?.enabled && ruijieDevices.length) {
+      const rUp = ruijieDevices.filter(d => d.online).length;
+      const rDown = ruijieDevices.length - rUp;
+      lines.push(`<b>Ruijie:</b> 🟢 ${rUp} online / 🔴 ${rDown} offline (total ${ruijieDevices.length})`);
+    } else {
+      lines.push('<b>Ruijie:</b> ⚪ tidak aktif');
+    }
+  }
+
+  if (st.procurement) {
+    const orders = dbAll("SELECT COUNT(*) as c FROM it_orders WHERE status NOT IN ('arrived','cancelled')");
+    lines.push(`<b>PR/Order pending:</b> 📦 ${orders[0]?.c || 0}`);
+  }
+
+  if (st.project) {
+    const proj = dbGet('SELECT COUNT(*) as c FROM project_tasks WHERE completed = 0');
+    lines.push(`<b>Project pending:</b> 🗂️ ${proj?.c || 0}`);
+  }
+
   return telegramSendText(chatId, lines.join('\n'));
 }
 
@@ -994,17 +1057,28 @@ app.post('/api/auth/change-password', (req, res) => {
 // GET settings
 app.get('/api/notifications/telegram/settings', (req, res) => {
   const s = getTelegramSettings();
-  res.json({ bot_token: s.bot_token || '', chat_id: s.chat_id || '', enabled: !!s.enabled });
+  const status = getTelegramStatusSettings();
+  res.json({ bot_token: s.bot_token || '', chat_id: s.chat_id || '', enabled: !!s.enabled, status });
 });
 
 // PUT settings
 app.put('/api/notifications/telegram/settings', (req, res) => {
-  const { bot_token, chat_id, enabled } = req.body || {};
+  const { bot_token, chat_id, enabled, status } = req.body || {};
   dbRun('UPDATE telegram_settings SET bot_token=?, chat_id=?, enabled=? WHERE id=1', [
     String(bot_token || '').trim(),
     String(chat_id || '').trim(),
     enabled ? 1 : 0
   ]);
+  if (status && typeof status === 'object') {
+    const st = getTelegramStatusSettings();
+    TELEGRAM_STATUS_CATEGORIES.forEach(c => {
+      if (typeof status[c] === 'boolean') st[c] = status[c];
+    });
+    dbRun(
+      'UPDATE telegram_status_settings SET host=?, cctv=?, unifi=?, ruijie=?, procurement=?, project=? WHERE id=1',
+      TELEGRAM_STATUS_CATEGORIES.map(c => (st[c] ? 1 : 0))
+    );
+  }
   startTelegramPolling();
   res.json({ ok: true });
 });
@@ -1279,6 +1353,7 @@ const PORT = process.env.PORT || 3001;
 
 initDB().then(() => {
   initAuthTable();
+  initTelegramStatusSettings();
   initHostsTable();
   initCCTVTable();
   initUnifiTable();

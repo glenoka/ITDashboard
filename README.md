@@ -271,8 +271,4 @@ server {
 
 ---
 
-## Catatan
 
-- Backup file lama (`backend/server - Copy.js`, `noc.db (2).bak`) tidak dipakai — jangan diedit.
-- `Topology Map` dan integrasi `Mikrotik` sudah dihapus.
-- Verifikasi perubahan backend: `node --check backend/server.js`; frontend: `npm run build`.

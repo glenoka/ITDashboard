@@ -4,10 +4,20 @@ import Icon from './Icon';
 
 const API = process.env.REACT_APP_API_URL || '';
 
+const STATUS_CATEGORIES = [
+  { id: 'host', label: 'Host Connection' },
+  { id: 'cctv', label: 'CCTV' },
+  { id: 'unifi', label: 'UniFi' },
+  { id: 'ruijie', label: 'Ruijie' },
+  { id: 'procurement', label: 'PR/Order' },
+  { id: 'project', label: 'Project' },
+];
+
 export default function TelegramSettingsModal({ onClose }) {
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
   const [enabled, setEnabled] = useState(false);
+  const [status, setStatus] = useState({ host: true, cctv: true, unifi: true, ruijie: true, procurement: true, project: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -20,17 +30,20 @@ export default function TelegramSettingsModal({ onClose }) {
         setBotToken(res.data.bot_token || '');
         setChatId(res.data.chat_id || '');
         setEnabled(!!res.data.enabled);
+        if (res.data.status) setStatus({ ...status, ...res.data.status });
       })
       .catch(() => setMsg('Gagal memuat pengaturan'))
       .finally(() => setLoading(false));
   }, []);
+
+  const toggleStatus = (id) => setStatus(s => ({ ...s, [id]: !s[id] }));
 
   const handleSave = async (e) => {
     e.preventDefault();
     setMsg(''); setIsErr(false);
     setSaving(true);
     try {
-      await axios.put(`${API}/api/notifications/telegram/settings`, { bot_token: botToken, chat_id: chatId, enabled });
+      await axios.put(`${API}/api/notifications/telegram/settings`, { bot_token: botToken, chat_id: chatId, enabled, status });
       setMsg('Pengaturan tersimpan'); setIsErr(false);
     } catch (e) {
       setMsg(e?.response?.data?.error || 'Gagal menyimpan'); setIsErr(true);
@@ -92,6 +105,31 @@ export default function TelegramSettingsModal({ onClose }) {
               </button>
             </div>
 
+            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', marginTop: 16, marginBottom: 6 }}>
+              Kategori di /status
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {STATUS_CATEGORIES.map(cat => {
+                const on = !!status[cat.id];
+                return (
+                  <div key={cat.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 10,
+                      background: 'var(--input-bg)', border: '1px solid var(--border)' }}>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{cat.label}</span>
+                    <button type="button" onClick={() => toggleStatus(cat.id)}
+                      style={{ width: 34, height: 19, borderRadius: 999, padding: 0, cursor: 'pointer',
+                        background: on ? 'var(--accent)' : 'var(--border)', border: 'none', position: 'relative', transition: 'background 0.15s' }}>
+                      <span style={{ position: 'absolute', top: 3, left: on ? 18 : 3, width: 13, height: 13,
+                        borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.35)', transition: 'left 0.15s' }} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 6 }}>
+              Kategori yang di-check akan ditampilkan di perintah /status. CCTV, UniFi, Ruijie, PR/Order &amp; Project hanya menampilkan jumlah, Host menampilkan detail yang down saja.
+            </div>
+
             {msg && (
               <div style={{ marginTop: 10, fontSize: 11.5, color: isErr ? 'var(--danger)' : 'var(--success)',
                 background: isErr ? 'rgba(239,68,68,0.10)' : 'rgba(16,185,129,0.10)',
@@ -126,7 +164,7 @@ export default function TelegramSettingsModal({ onClose }) {
             /project_add (judul) — tambah project baru<br />
             /order_add — tambah order (PR &amp; item)<br />
             /ping (ip) — ping host/ip<br />
-            /status — ringkasan host &amp; CCTV<br />
+            /status — ringkasan host, CCTV, UniFi, Ruijie, PR/Order &amp; project<br />
             /stats — ringkasan sistem &amp; bandwidth<br />
             /report — laporan harian<br />
             /backup — kirim backup DB<br />
