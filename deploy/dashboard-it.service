@@ -1,0 +1,17 @@
+[Unit]
+Description=Dashboard IT Backend (Node.js + Express)
+After=network.target
+
+[Service]
+Type=simple
+User=itkbm
+WorkingDirectory=/home/itkbm/dashboard-it/backend
+ExecStart=/usr/bin/node server.js
+Environment=PORT=3002
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
