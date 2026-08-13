@@ -644,13 +644,30 @@ function formatSpeedTestLine(st) {
 
 function runSpeedTest() {
   return new Promise((resolve) => {
-    execFile('speedtest', ['--accept-license', '--accept-gdpr', '--format=json'], { timeout: 60000 }, (err, stdout) => {
-      if (err) {
-        console.log('[speedtest] gagal:', err.message);
-        return resolve(null);
-      }
+    let done = false;
+    const finish = (r) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
+
+    let child;
+    try {
+      child = spawn('speedtest', ['--accept-license', '--accept-gdpr', '--format=json'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) {
+      console.log('[speedtest] spawn error:', e.message);
+      return finish(null);
+    }
+
+    const timer = setTimeout(() => {
+      console.log('[speedtest] timeout 60s, proses dihentikan');
+      try { child.kill('SIGKILL'); } catch (e) {}
+      finish(null);
+    }, 60000);
+
+    const out = [];
+    child.stdout.on('data', d => out.push(d));
+    child.on('error', (err) => { console.log('[speedtest] error:', err.message); finish(null); });
+    child.on('exit', (code) => {
+      if (done) return;
       try {
-        const j = JSON.parse(stdout);
+        const j = JSON.parse(Buffer.concat(out).toString());
         const res = {
           download_mbps: ((j.download && j.download.bandwidth) || 0) * 8 / 1e6,
           upload_mbps: ((j.upload && j.upload.bandwidth) || 0) * 8 / 1e6,
@@ -659,11 +676,11 @@ function runSpeedTest() {
         };
         dbRun('INSERT INTO speedtest_logs (download_mbps, upload_mbps, ping_ms, server_name) VALUES (?,?,?,?)',
           [res.download_mbps, res.upload_mbps, res.ping_ms, res.server_name]);
-        console.log('[speedtest] selesai:', JSON.stringify(res));
-        resolve(res);
+        console.log('[speedtest] selesai (code ' + code + '):', JSON.stringify(res));
+        finish(res);
       } catch (e) {
         console.log('[speedtest] parse error:', e.message);
-        resolve(null);
+        finish(null);
       }
     });
   });
@@ -1669,7 +1686,7 @@ app.post('/api/cctv/:id/check', async (req, res) => {
 
 
 // ── HLS LIVE STREAMING (ffmpeg RTSP → HLS) ───────────────────────────────────
-const { spawn, execFile } = require('child_process');
+const { spawn } = require('child_process');
 const fsSync    = require('fs');
 const pathMod   = require('path');
 
