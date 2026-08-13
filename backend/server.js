@@ -13,6 +13,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
 
+require('dns').setDefaultResultOrder('ipv4first');
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -188,7 +190,7 @@ function getTelegramStatusSettings() {
 async function telegramApi(method, payload = {}, timeout = 15000) {
   const { bot_token } = getTelegramSettings();
   if (!bot_token) return null;
-  const res = await axios.post(`${TG_API}/bot${bot_token}/${method}`, payload, { timeout });
+  const res = await axios.post(`${TG_API}/bot${bot_token}/${method}`, payload, { timeout, family: 4 });
   return res.data;
 }
 
