@@ -23,11 +23,15 @@ if [ "$(node -v | sed 's/v//' | cut -d. -f1)" -lt 18 ]; then
 fi
 
 echo "==> [0/6] Install Ookla speedtest CLI (untuk laporan harian)"
-if ! command -v speedtest >/dev/null 2>&1; then
-  curl -fsSL https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
-  sudo apt install -y speedtest-cli
+if ! command -v speedtest >/dev/null 2>&1 || ! speedtest --version 2>/dev/null | grep -qi 'ookla'; then
+  sudo apt remove -y speedtest-cli 2>/dev/null || true
+  curl -fsSL "https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-$(uname -m).tgz" -o /tmp/ookla.tgz
+  tar xzf /tmp/ookla.tgz -C /tmp
+  sudo mv /tmp/speedtest /usr/local/bin/speedtest
+  sudo chmod +x /usr/local/bin/speedtest
 fi
 speedtest --accept-license --accept-gdpr >/dev/null 2>&1 || true
+echo "speedtest version: $(speedtest --version 2>/dev/null | head -n 1)"
 
 echo "==> [1/6] Install dependency backend & frontend"
 cd "$APP_DIR"

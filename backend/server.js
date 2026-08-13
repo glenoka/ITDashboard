@@ -642,14 +642,44 @@ function formatSpeedTestLine(st) {
   return `⚡ Speedtest: DOWNLOAD = ${dl} Mbps; UPLOAD = ${ul} Mbps; PING = ${p} ms`;
 }
 
-function runSpeedTest() {
+function detectSpeedtestVariant() {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    let child;
+    try {
+      child = spawn('speedtest', ['--version'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) {
+      return finish(null);
+    }
+    let out = '';
+    child.stdout.on('data', d => out += d.toString());
+    child.on('error', () => finish(null));
+    child.on('exit', () => finish(/ookla/i.test(out) ? 'ookla' : (out.trim() ? 'python' : null)));
+    const timer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch (e) {}
+      finish(null);
+    }, 5000);
+  });
+}
+
+async function runSpeedTest() {
+  const variant = await detectSpeedtestVariant();
+  if (!variant) {
+    console.log('[speedtest] binary speedtest tidak ditemukan (install Ookla CLI atau speedtest-cli)');
+    return null;
+  }
+  const args = variant === 'ookla'
+    ? ['--accept-license', '--accept-gdpr', '--format=json']
+    : ['--json'];
+
   return new Promise((resolve) => {
     let done = false;
     const finish = (r) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
 
     let child;
     try {
-      child = spawn('speedtest', ['--accept-license', '--accept-gdpr', '--format=json'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      child = spawn('speedtest', args, { stdio: ['ignore', 'pipe', 'ignore'] });
     } catch (e) {
       console.log('[speedtest] spawn error:', e.message);
       return finish(null);
@@ -668,15 +698,22 @@ function runSpeedTest() {
       if (done) return;
       try {
         const j = JSON.parse(Buffer.concat(out).toString());
+        const dl = variant === 'ookla'
+          ? ((j.download && j.download.bandwidth) || 0) * 8 / 1e6
+          : (j.download || 0) * 8 / 1e6;
+        const ul = variant === 'ookla'
+          ? ((j.upload && j.upload.bandwidth) || 0) * 8 / 1e6
+          : (j.upload || 0) * 8 / 1e6;
+        const ping = (j.ping && typeof j.ping === 'object') ? (j.ping.latency || 0) : (j.ping || 0);
         const res = {
-          download_mbps: ((j.download && j.download.bandwidth) || 0) * 8 / 1e6,
-          upload_mbps: ((j.upload && j.upload.bandwidth) || 0) * 8 / 1e6,
-          ping_ms: (j.ping && j.ping.latency) || 0,
+          download_mbps: dl,
+          upload_mbps: ul,
+          ping_ms: ping,
           server_name: (j.server && j.server.name) || '',
         };
         dbRun('INSERT INTO speedtest_logs (download_mbps, upload_mbps, ping_ms, server_name) VALUES (?,?,?,?)',
           [res.download_mbps, res.upload_mbps, res.ping_ms, res.server_name]);
-        console.log('[speedtest] selesai (code ' + code + '):', JSON.stringify(res));
+        console.log('[speedtest] selesai (' + variant + ', code ' + code + '):', JSON.stringify(res));
         finish(res);
       } catch (e) {
         console.log('[speedtest] parse error:', e.message);
