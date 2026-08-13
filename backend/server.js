@@ -772,14 +772,21 @@ async function sendDailyReport(chatId) {
 
 async function sendSpeedTest(chatId) {
   await telegramSendText(chatId, '⏳ Sedang melakukan internet speed test, mohon tunggu ±30 detik...');
-  const st = await Promise.race([
-    runSpeedTest(),
-    new Promise(res => setTimeout(() => res(null), 75000)),
-  ]);
-  const msg = st
-    ? `⚡ <b>Speedtest:</b>\n${formatSpeedTestLine(st)}`
-    : '⚡ Speedtest: GAGAL\nPastikan binary speedtest terinstall dan server punya akses internet.';
-  return telegramSendText(chatId, msg);
+  try {
+    const st = await Promise.race([
+      runSpeedTest(),
+      new Promise(res => setTimeout(() => res(null), 75000)),
+    ]);
+    const msg = st
+      ? `⚡ <b>Speedtest:</b>\n${formatSpeedTestLine(st)}`
+      : '⚡ Speedtest: GAGAL\nPastikan binary speedtest terinstall dan server punya akses internet.';
+    const res = await telegramSendText(chatId, msg);
+    console.log('[testbw] reply terkirim:', st ? 'sukses' : 'gagal', res && res.ok);
+    return res;
+  } catch (e) {
+    console.log('[testbw] error:', e.message);
+    return null;
+  }
 }
 
 async function broadcastDailyReport(speedTest) {
@@ -1013,9 +1020,9 @@ function startTelegramPolling() {
         for (const up of data.result || []) {
           offset = up.update_id + 1;
           const m = up.message;
-          if (m && m.text) handleTelegramMessage(m).catch(() => {});
+          if (m && m.text) handleTelegramMessage(m).catch(e => console.log('[telegram] handler error:', e && e.message));
           const cq = up.callback_query;
-          if (cq) handleTelegramCallback(cq).catch(() => {});
+          if (cq) handleTelegramCallback(cq).catch(e => console.log('[telegram] callback error:', e && e.message));
         }
       } else if (data && (data.error_code === 401 || data.error_code === 404)) {
         console.error('[telegram] polling dihentikan, token tidak valid:', data.description);
