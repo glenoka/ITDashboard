@@ -206,7 +206,10 @@ async function telegramSendText(chatId, text, extra) {
       ...(extra || {}),
     });
   } catch (e) {
-    console.error('[telegram] sendMessage failed:', e.message);
+    const detail = e.response
+      ? `HTTP ${e.response.status} ${JSON.stringify(e.response.data)}`
+      : (e.code ? `${e.code}: ${e.message}` : `(${e.message || 'no message'})`);
+    console.error('[telegram] sendMessage failed:', detail);
     return null;
   }
 }
@@ -690,11 +693,11 @@ async function runSpeedTest() {
 
     timer = setTimeout(() => {
       if (!done) {
-        console.log('[speedtest] timeout 60s, proses dihentikan');
+        console.log('[speedtest] timeout 90s, proses dihentikan');
         try { child.kill('SIGKILL'); } catch (e) {}
       }
       finish(null);
-    }, 60000);
+    }, 90000);
 
     const out = [];
     const errOut = [];
@@ -780,7 +783,7 @@ async function sendSpeedTest(chatId) {
   try {
     const st = await Promise.race([
       runSpeedTest(),
-      new Promise(res => setTimeout(() => res(null), 75000)),
+      new Promise(res => setTimeout(() => res(null), 110000)),
     ]);
     const msg = st
       ? `⚡ <b>Speedtest:</b>\n${formatSpeedTestLine(st)}`
