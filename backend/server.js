@@ -645,18 +645,20 @@ function formatSpeedTestLine(st) {
 function detectSpeedtestVariant() {
   return new Promise((resolve) => {
     let done = false;
-    const finish = (v) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    let timer;
+    const finish = (v) => { if (!done) { done = true; if (timer) clearTimeout(timer); resolve(v); } };
     let child;
     try {
-      child = spawn('speedtest', ['--version'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      child = spawn('speedtest', ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
+      console.log('[speedtest] detect error:', e.message);
       return finish(null);
     }
     let out = '';
     child.stdout.on('data', d => out += d.toString());
     child.on('error', () => finish(null));
     child.on('exit', () => finish(/ookla/i.test(out) ? 'ookla' : (out.trim() ? 'python' : null)));
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       try { child.kill('SIGKILL'); } catch (e) {}
       finish(null);
     }, 5000);
@@ -675,26 +677,29 @@ async function runSpeedTest() {
 
   return new Promise((resolve) => {
     let done = false;
-    const finish = (r) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
+    let timer;
+    const finish = (r) => { if (!done) { done = true; if (timer) clearTimeout(timer); resolve(r); } };
 
     let child;
     try {
-      child = spawn('speedtest', args, { stdio: ['ignore', 'pipe', 'ignore'] });
+      child = spawn('speedtest', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       console.log('[speedtest] spawn error:', e.message);
       return finish(null);
     }
 
-    const timer = setTimeout(() => {
-      console.log('[speedtest] timeout 60s, proses dihentikan');
-      try { child.kill('SIGKILL'); } catch (e) {}
+    timer = setTimeout(() => {
+      if (!done) {
+        console.log('[speedtest] timeout 60s, proses dihentikan');
+        try { child.kill('SIGKILL'); } catch (e) {}
+      }
       finish(null);
     }, 60000);
 
     const out = [];
     const errOut = [];
     child.stdout.on('data', d => out.push(d));
-    child.stderr.on('data', d => errOut.push(d));
+    if (child.stderr) child.stderr.on('data', d => errOut.push(d));
     child.on('error', (err) => { console.log('[speedtest] error:', err.message); finish(null); });
     child.on('exit', (code) => {
       if (done) return;
