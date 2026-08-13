@@ -772,10 +772,13 @@ async function sendDailyReport(chatId) {
 
 async function sendSpeedTest(chatId) {
   await telegramSendText(chatId, '⏳ Sedang melakukan internet speed test, mohon tunggu ±30 detik...');
-  const st = await runSpeedTest();
+  const st = await Promise.race([
+    runSpeedTest(),
+    new Promise(res => setTimeout(() => res(null), 75000)),
+  ]);
   const msg = st
     ? `⚡ <b>Speedtest:</b>\n${formatSpeedTestLine(st)}`
-    : '⚡ Speedtest: GAGAL\nPastikan binary speedtest terinstall (sudo apt install speedtest-cli) dan server punya akses internet.';
+    : '⚡ Speedtest: GAGAL\nPastikan binary speedtest terinstall dan server punya akses internet.';
   return telegramSendText(chatId, msg);
 }
 
