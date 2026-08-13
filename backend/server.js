@@ -771,7 +771,7 @@ async function sendDailyReport(chatId) {
 }
 
 async function sendSpeedTest(chatId) {
-  await telegramSendText(chatId, '⏳ Sedang melakukan internet speed test, mohon tunggu ±30 detik...');
+  await telegramSendText(chatId, '⏳ Sedang melakukan internet speed test, mohon tunggu ±1 menit...');
   try {
     const st = await Promise.race([
       runSpeedTest(),
