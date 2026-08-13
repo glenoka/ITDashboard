@@ -692,10 +692,14 @@ async function runSpeedTest() {
     }, 60000);
 
     const out = [];
+    const errOut = [];
     child.stdout.on('data', d => out.push(d));
+    child.stderr.on('data', d => errOut.push(d));
     child.on('error', (err) => { console.log('[speedtest] error:', err.message); finish(null); });
     child.on('exit', (code) => {
       if (done) return;
+      const stderr = Buffer.concat(errOut).toString().trim();
+      if (stderr) console.log('[speedtest] stderr:', stderr.slice(0, 500));
       try {
         const j = JSON.parse(Buffer.concat(out).toString());
         const dl = variant === 'ookla'
@@ -716,7 +720,7 @@ async function runSpeedTest() {
         console.log('[speedtest] selesai (' + variant + ', code ' + code + '):', JSON.stringify(res));
         finish(res);
       } catch (e) {
-        console.log('[speedtest] parse error:', e.message);
+        console.log('[speedtest] parse error:', e.message, '| stdout:', Buffer.concat(out).toString().slice(0, 200));
         finish(null);
       }
     });
