@@ -22,6 +22,13 @@ if [ "$(node -v | sed 's/v//' | cut -d. -f1)" -lt 18 ]; then
   exit 1
 fi
 
+echo "==> [0/6] Install Ookla speedtest CLI (untuk laporan harian)"
+if ! command -v speedtest >/dev/null 2>&1; then
+  curl -fsSL https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
+  sudo apt install -y speedtest-cli
+fi
+speedtest --accept-license --accept-gdpr >/dev/null 2>&1 || true
+
 echo "==> [1/6] Install dependency backend & frontend"
 cd "$APP_DIR"
 npm run install:all

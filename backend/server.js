@@ -65,6 +65,12 @@ async function initDB() {
       disk_used REAL, disk_total REAL,
       logged_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS speedtest_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      download_mbps REAL, upload_mbps REAL, ping_ms REAL,
+      server_name TEXT DEFAULT '',
+      tested_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS status_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       category TEXT NOT NULL,
@@ -314,6 +320,7 @@ const HELP_TEXT = [
   '/ping &lt;ip&gt; — ping host/IP',
   '/status — ringkasan host, CCTV, UniFi, Ruijie, PR/Order & project',
   '/stats — ringkasan sistem & bandwidth',
+  '/testbw — internet speed test manual (download/upload/ping)',
   '/report — laporan harian (host, CCTV, order, checklist, project, sistem)',
   '/backup — kirim backup DB sekarang',
   '/restart — restart server backend',
@@ -626,7 +633,43 @@ async function runDailyBackup() {
 }
 
 // ── Daily report ──────────────────────────────────────────────────────────────
-async function buildDailyReport() {
+// ── Internet Speed Test (Ookla CLI) ──────────────────────────────────────────
+function formatSpeedTestLine(st) {
+  if (!st) return '⚡ Speedtest: GAGAL';
+  const dl = Number(st.download_mbps || 0).toFixed(2);
+  const ul = Number(st.upload_mbps || 0).toFixed(2);
+  const p = Number(st.ping_ms || 0).toFixed(2);
+  return `⚡ Speedtest: DOWNLOAD = ${dl} Mbps; UPLOAD = ${ul} Mbps; PING = ${p} ms`;
+}
+
+function runSpeedTest() {
+  return new Promise((resolve) => {
+    execFile('speedtest', ['--accept-license', '--accept-gdpr', '--format=json'], { timeout: 60000 }, (err, stdout) => {
+      if (err) {
+        console.log('[speedtest] gagal:', err.message);
+        return resolve(null);
+      }
+      try {
+        const j = JSON.parse(stdout);
+        const res = {
+          download_mbps: ((j.download && j.download.bandwidth) || 0) * 8 / 1e6,
+          upload_mbps: ((j.upload && j.upload.bandwidth) || 0) * 8 / 1e6,
+          ping_ms: (j.ping && j.ping.latency) || 0,
+          server_name: (j.server && j.server.name) || '',
+        };
+        dbRun('INSERT INTO speedtest_logs (download_mbps, upload_mbps, ping_ms, server_name) VALUES (?,?,?,?)',
+          [res.download_mbps, res.upload_mbps, res.ping_ms, res.server_name]);
+        console.log('[speedtest] selesai:', JSON.stringify(res));
+        resolve(res);
+      } catch (e) {
+        console.log('[speedtest] parse error:', e.message);
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function buildDailyReport(speedTest) {
   const lines = [`<b>📊 Laporan Harian ${formatTgDate(new Date())}</b>`, ''];
 
   const hosts = dbAll('SELECT * FROM hosts');
@@ -658,6 +701,9 @@ async function buildDailyReport() {
     lines.push(`💻 CPU ${cpu.currentLoad.toFixed(0)}% · RAM ${gb(mem.used)}/${gb(mem.total)}GB · Disk ${gb((disk[0] || {}).used || 0)}/${gb((disk[0] || {}).size || 0)}GB`);
   } catch (e) { /* abaikan jika sistem tidak bisa dibaca */ }
 
+  const st = speedTest || dbGet('SELECT * FROM speedtest_logs ORDER BY id DESC LIMIT 1');
+  lines.push(formatSpeedTestLine(st));
+
   return lines.join('\n');
 }
 
@@ -666,10 +712,19 @@ async function sendDailyReport(chatId) {
   return telegramSendText(chatId, text, { reply_markup: TG_KEYBOARD_MAIN });
 }
 
-async function broadcastDailyReport() {
+async function sendSpeedTest(chatId) {
+  await telegramSendText(chatId, '⏳ Sedang melakukan internet speed test, mohon tunggu ±30 detik...');
+  const st = await runSpeedTest();
+  const msg = st
+    ? `⚡ <b>Speedtest:</b>\n${formatSpeedTestLine(st)}`
+    : '⚡ Speedtest: GAGAL\nPastikan binary speedtest terinstall (sudo apt install speedtest-cli) dan server punya akses internet.';
+  return telegramSendText(chatId, msg);
+}
+
+async function broadcastDailyReport(speedTest) {
   const s = getTelegramSettings();
   if (!s.enabled || !s.bot_token || !s.chat_id) return;
-  const text = await buildDailyReport();
+  const text = await buildDailyReport(speedTest);
   for (const id of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
     await telegramSendText(id, text, { reply_markup: TG_KEYBOARD_MAIN });
   }
@@ -694,7 +749,7 @@ function restartServer() {
 function startDailyJobs() {
   let lastBackupDate = null;
   let lastReportDate = null;
-  const check = () => {
+  const check = async () => {
     const now = new Date();
     const ymd = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
@@ -704,7 +759,12 @@ function startDailyJobs() {
     }
     if (hhmm >= '07:00' && lastReportDate !== ymd) {
       lastReportDate = ymd;
-      broadcastDailyReport();
+      try {
+        const st = await runSpeedTest();
+        await broadcastDailyReport(st);
+      } catch (e) {
+        console.log('[report] error:', e.message);
+      }
     }
   };
   check();
@@ -738,6 +798,7 @@ async function handleTelegramMessage(msg) {
   if (cmd === '/status') return sendHostStatus(msg.chat.id);
   if (cmd === '/stats') return sendSystemStats(msg.chat.id);
   if (cmd === '/report') return sendDailyReport(msg.chat.id);
+  if (cmd === '/testbw') return sendSpeedTest(msg.chat.id);
   if (cmd === '/backup') {
     const done = await runDailyBackup();
     if (done) return telegramSendText(msg.chat.id, `✅ Backup berhasil: <code>${done}</code>`);
@@ -1338,6 +1399,7 @@ function cleanupLogs() {
   dbRun("DELETE FROM monitoring_logs WHERE checked_at < ?", [cutoff90]);
   dbRun("DELETE FROM bandwidth_logs WHERE logged_at < ?", [cutoff30]);
   dbRun("DELETE FROM system_metrics WHERE logged_at < ?", [cutoff30]);
+  dbRun("DELETE FROM speedtest_logs WHERE tested_at < ?", [cutoff30]);
   dbRun("DELETE FROM status_events WHERE occurred_at < ?", [cutoff90]);
 }
 
@@ -1607,7 +1669,7 @@ app.post('/api/cctv/:id/check', async (req, res) => {
 
 
 // ── HLS LIVE STREAMING (ffmpeg RTSP → HLS) ───────────────────────────────────
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const fsSync    = require('fs');
 const pathMod   = require('path');
 
