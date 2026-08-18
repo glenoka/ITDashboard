@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ConfirmModal from './ConfirmModal';
 import MarkdownExportModal from './MarkdownExportModal';
+import ActionMenu from './ActionMenu';
 import { toMarkdownTable, fmtID, rupiah } from '../utils/format';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -161,20 +162,20 @@ export default function AssetPage({ wsRef }) {
                 color: filter === s.id ? 'var(--accent)' : 'var(--text-muted)',
               }}>{s.label}</button>
           ))}
-          <select className="input" style={{ width: 150, marginLeft: 4 }} value={cat} onChange={e => setCat(e.target.value)}>
+          <select className="input toolbar-select" style={{ width: 150, maxWidth: '100%', marginLeft: 4 }} value={cat} onChange={e => setCat(e.target.value)}>
             <option value="all">Semua kategori</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <div className="flex items-center gap-2">
-          <input className="input" style={{ width: 220 }} placeholder="Cari kode / barang / serial..."
+        <div className="flex items-center gap-2 flex-wrap">
+          <input className="input toolbar-search" style={{ width: 220, maxWidth: '100%' }} placeholder="Cari kode / barang / serial..."
             value={search} onChange={e => setSearch(e.target.value)} />
           <button className="btn-ghost" onClick={doExport} style={{ fontSize: 11, padding: '8px 14px' }}>⬇ Export Markdown</button>
           <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ Tambah Aset</button>
         </div>
       </div>
 
-      <div className="card overflow-hidden table-scroll">
+      <div className="card table-scroll">
         <table>
           <thead>
             <tr>
@@ -204,14 +205,11 @@ export default function AssetPage({ wsRef }) {
                   <td>{a.pic || '-'}</td>
                   <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <button onClick={() => openMaintenance(a)} title="Maintenance"
-                        style={{ background: 'rgba(251,191,36,0.12)', color: 'var(--warning)', border: '1px solid rgba(251,191,36,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>🔧</button>
-                      <button onClick={() => openEdit(a)} title="Edit"
-                        style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
-                      <button onClick={() => setConfirm({ id: a.id, name: a.item_name })} title="Hapus"
-                        style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>✕</button>
-                    </div>
+                    <ActionMenu actions={[
+                      { label: 'Maintenance', icon: '🔧', color: 'var(--warning)', onClick: () => openMaintenance(a) },
+                      { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => openEdit(a) },
+                      { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => setConfirm({ id: a.id, name: a.item_name }) },
+                    ]} />
                   </td>
                 </tr>
               );

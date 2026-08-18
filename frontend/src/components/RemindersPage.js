@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ConfirmModal from './ConfirmModal';
+import ActionMenu from './ActionMenu';
 import { fmtID } from '../utils/format';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -170,7 +171,7 @@ export default function RemindersPage({ wsRef }) {
         <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ Tambah Reminder</button>
       </div>
 
-      <div className="card overflow-hidden table-scroll">
+      <div className="card table-scroll">
         <table>
           <thead>
             <tr>
@@ -200,20 +201,12 @@ export default function RemindersPage({ wsRef }) {
                   <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
                   <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.notes || '-'}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {r.status === 'active' && (
-                        <>
-                          <button onClick={() => completeReminder(r.id)} title="Selesai"
-                            style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>✓</button>
-                          <button onClick={() => openSnooze(r)} title="Tunda"
-                            style={{ background: 'rgba(251,191,36,0.12)', color: 'var(--warning)', border: '1px solid rgba(251,191,36,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>📅</button>
-                        </>
-                      )}
-                      <button onClick={() => openEdit(r)} title="Edit"
-                        style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
-                      <button onClick={() => setConfirm({ id: r.id, name: r.title || r.asset_name || 'Reminder' })} title="Hapus"
-                        style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 999, padding: '5px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>✕</button>
-                    </div>
+                    <ActionMenu actions={[
+                      r.status === 'active' ? { label: 'Selesai', icon: '✅', color: 'var(--success)', onClick: () => completeReminder(r.id) } : null,
+                      r.status === 'active' ? { label: 'Tunda', icon: '📅', color: 'var(--warning)', onClick: () => openSnooze(r) } : null,
+                      { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => openEdit(r) },
+                      { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => setConfirm({ id: r.id, name: r.title || r.asset_name || 'Reminder' }) },
+                    ]} />
                   </td>
                 </tr>
               );

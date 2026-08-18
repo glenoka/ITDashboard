@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ConfirmModal from './ConfirmModal';
 import MarkdownExportModal from './MarkdownExportModal';
+import ActionMenu from './ActionMenu';
 import { toMarkdownTable, fmtID, rupiah } from '../utils/format';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -153,8 +154,8 @@ export default function ProcurementPage({ wsRef }) {
               }}>{s.label}</button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <input className="input" style={{ width: 220 }} placeholder="Cari barang / vendor / no PR..."
+        <div className="flex items-center gap-2 flex-wrap">
+          <input className="input toolbar-search" style={{ width: 220, maxWidth: '100%' }} placeholder="Cari barang / vendor / no PR..."
             value={search} onChange={e => setSearch(e.target.value)} />
           <button className="btn-ghost" onClick={doExport} style={{ fontSize: 11, padding: '8px 14px' }}>⬇ Export Markdown</button>
           <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ Buat Order</button>
@@ -162,7 +163,7 @@ export default function ProcurementPage({ wsRef }) {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden table-scroll">
+      <div className="card table-scroll">
         <table>
           <thead>
             <tr>
@@ -191,30 +192,24 @@ export default function ProcurementPage({ wsRef }) {
                   <td style={{ fontFamily: 'var(--mono)' }}>{fmtID(o.est_arrival)}</td>
                   <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {o.status !== 'arrived' && o.status !== 'cancelled' && (
-                        <button onClick={() => arrive(o.id)} disabled={arrivingId === o.id}
-                          title="Tandai barang tiba (tidak otomatis jadi aset)"
-                          style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
-                          {arrivingId === o.id ? '...' : 'Tiba'}
-                        </button>
-                      )}
-                      {o.status === 'arrived' && !o.asset_count && (
-                        <button onClick={() => createAssets(o.id)} disabled={arrivingId === o.id}
-                          title="Jadikan aset inventaris (per qty)"
-                          style={{ background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', border: '1px solid rgba(99,102,241,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
-                          {arrivingId === o.id ? '...' : '→ Aset'}
-                        </button>
-                      )}
-                      {o.status === 'arrived' && !!o.asset_count && (
-                        <span title="Aset sudah dibuat dari order ini"
-                          style={{ background: 'rgba(99,102,241,0.10)', color: 'var(--accent)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--mono)' }}>
-                          ✓ {o.asset_count} Aset
-                        </span>
-                      )}
-                      <button onClick={() => openEdit(o)} style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--info)', border: '1px solid rgba(59,130,246,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
-                      <button onClick={() => setConfirm({ id: o.id, name: o.item_name })} style={{ background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 999, padding: '5px 10px', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Hapus</button>
-                    </div>
+                    <ActionMenu actions={[
+                      o.status !== 'arrived' && o.status !== 'cancelled'
+                        ? { label: arrivingId === o.id ? '...' : 'Tandai Tiba', icon: '📦', color: 'var(--success)', onClick: () => arrive(o.id), disabled: arrivingId === o.id }
+                        : null,
+                      o.status === 'arrived' && !o.asset_count
+                        ? { label: arrivingId === o.id ? '...' : 'Jadikan Aset', icon: '📋', color: 'var(--accent)', onClick: () => createAssets(o.id), disabled: arrivingId === o.id }
+                        : null,
+                      { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => openEdit(o) },
+                      { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => setConfirm({ id: o.id, name: o.item_name }) },
+                    ]} />
+                    {o.status === 'arrived' && !!o.asset_count && (
+                      <span title="Aset sudah dibuat dari order ini" style={{
+                        display: 'inline-block', marginLeft: 6, background: 'rgba(99,102,241,0.10)',
+                        color: 'var(--accent)', border: '1px solid rgba(99,102,241,0.25)',
+                        borderRadius: 999, padding: '3px 8px', fontSize: 9.5, fontWeight: 700,
+                        fontFamily: 'var(--mono)',
+                      }}>✓ {o.asset_count}</span>
+                    )}
                   </td>
                 </tr>
               );

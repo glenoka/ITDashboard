@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ConfirmModal from './ConfirmModal';
+import ActionMenu from './ActionMenu';
 import Icon from './Icon';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -122,9 +123,11 @@ export default function ProjectChecklist() {
                   dibuat {new Date(task.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button {...iconBtn('var(--info)', 'Edit', () => setEdit(task), 'Pencil')}><Icon name="Pencil" size={13} /></button>
-                <button {...iconBtn('var(--danger)', 'Hapus', () => setConfirmDelete(task.id), 'Trash2')}><Icon name="Trash2" size={13} /></button>
+              <div style={{ flexShrink: 0 }}>
+                <ActionMenu actions={[
+                  { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => setEdit(task) },
+                  { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => setConfirmDelete(task.id) },
+                ]} />
               </div>
             </div>
           ))
@@ -158,7 +161,11 @@ export default function ProjectChecklist() {
                     </div>
                   ) : null}
                 </div>
-                <button {...iconBtn('var(--danger)', 'Hapus', () => setConfirmDelete(task.id), 'Trash2')}><Icon name="Trash2" size={13} /></button>
+                <button onClick={() => setConfirmDelete(task.id)} title="Hapus"
+                  style={{ background: 'transparent', border: '1px solid var(--danger)', color: 'var(--danger)',
+                    borderRadius: 8, padding: '6px 8px', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                  <Icon name="Trash2" size={13} />
+                </button>
               </div>
             ))}
           </div>

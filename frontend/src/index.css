@@ -80,6 +80,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition: background 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
 }
 h1, h2, h3, h4 { font-family: var(--ui); }
 code, pre, kbd { font-family: var(--mono); }
@@ -233,6 +234,9 @@ tr:hover td { background: var(--hover); }
   .badge { font-size: 9.5px; padding: 2px 7px; }
 
   .btn-primary, .btn-ghost, .btn-danger { font-size: 11px; padding: 7px 12px; }
+
+  .toolbar-search { width: 100% !important; max-width: none !important; }
+  .toolbar-select { width: 100% !important; max-width: none !important; }
 }
 
 @media (max-width: 640px) {

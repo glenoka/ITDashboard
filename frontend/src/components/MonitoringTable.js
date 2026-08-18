@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ActionMenu from './ActionMenu';
 
 const INTERVALS = { 10: '10s', 30: '30s', 60: '1m', 180: '3m', 600: '10m' };
 
@@ -165,22 +166,10 @@ function HostRow({ host, onEdit, onDelete, onDetail }) {
       <td style={{ color: 'var(--text-muted)', fontSize: 11, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--mono)' }}>{lastCheck}</td>
       <td style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--mono)' }}>{INTERVALS[host.interval] || `${host.interval}s`}</td>
       <td onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onEdit(host)}
-            className="btn-ghost"
-            style={{ fontSize: 11, padding: '4px 10px' }}
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(host.id)}
-            className="btn-danger"
-            style={{ fontSize: 11, padding: '4px 10px' }}
-          >
-            Hapus
-          </button>
-        </div>
+        <ActionMenu actions={[
+          { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => onEdit(host) },
+          { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => onDelete(host.id) },
+        ]} />
       </td>
     </tr>
   );

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { getPeriodKey, shiftPeriod, formatPeriodLabel } from '../data/checklistData';
 import ProjectChecklist from './ProjectChecklist';
+import ActionMenu from './ActionMenu';
 import Icon from './Icon';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -348,21 +349,10 @@ export default function ChecklistPage() {
                       {task.description && <div style={{ fontSize: 10, color: 'var(--text-faint)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.description}</div>}
                     </div>
-                    <button onClick={() => {
-                      setEditTask(task);
-                      setManageForm(f => ({ ...f, title: task.title, description: task.description || '' }));
-                    }}
-                      style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--hover)',
-                        border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon name="Pencil" size={11} />
-                    </button>
-                    <button onClick={() => { if (window.confirm(`Hapus tugas "${task.title}"?`)) deleteTask(task); }}
-                      style={{ width: 26, height: 26, borderRadius: 6, background: 'var(--hover)',
-                        border: '1px solid var(--border)', color: 'var(--danger)', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon name="Trash2" size={11} />
-                    </button>
+                    <ActionMenu actions={[
+                      { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => { setEditTask(task); setManageForm(f => ({ ...f, title: task.title, description: task.description || '' })); } },
+                      { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => { if (window.confirm(`Hapus tugas "${task.title}"?`)) deleteTask(task); } },
+                    ]} />
                   </div>
                 ))
               )}

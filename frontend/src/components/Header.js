@@ -33,18 +33,18 @@ export default function Header({ wsStatus, notifStatus, onRequestNotif, activePa
   return (
     <header style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 40 }}>
       {/* Top bar */}
-      <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 h-12 sm:h-14 flex items-center justify-between" style={{ gap: 8 }}>
+      <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 h-12 sm:h-14 flex items-center justify-between" style={{ gap: 6 }}>
         {/* Logo */}
-        <div className="flex items-center gap-2 sm:gap-3" style={{ minWidth: 0 }}>
+        <div className="flex items-center gap-2 sm:gap-3" style={{ minWidth: 0, flexShrink: 1 }}>
           <div style={{
-            width: 30, height: 30, flexShrink: 0, background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
-            borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, flexShrink: 0, background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+            borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 12px rgba(99,102,241,0.30)', color: 'var(--on-accent)',
           }}>
-            <Icon name="Hexagon" size={16} />
+            <Icon name="Hexagon" size={15} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--text)', letterSpacing: '0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>
+            <div style={{ fontWeight: 800, fontSize: 12.5, color: 'var(--text)', letterSpacing: '0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>
               Dashboard IT
             </div>
             <div className="hidden sm:block" style={{ fontSize: 8.5, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.12em', marginTop: 3 }}>
@@ -55,13 +55,13 @@ export default function Header({ wsStatus, notifStatus, onRequestNotif, activePa
 
         {/* Page title - hidden on mobile */}
         {PAGE_TITLES[activePage] && (
-          <div className="hidden md:block" style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
+          <div className="hidden lg:block" style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
             {PAGE_TITLES[activePage]}
           </div>
         )}
 
         {/* Right */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5" style={{ flexShrink: 0 }}>
+        <div className="flex items-center gap-1 sm:gap-2" style={{ flexShrink: 1 }}>
           <div className="hidden sm:flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: wsColor }} />
             <span style={{ fontSize: 10, color: wsColor, fontWeight: 600 }}>{wsLabel}</span>
@@ -79,11 +79,11 @@ export default function Header({ wsStatus, notifStatus, onRequestNotif, activePa
             </button>
           )}
           <button onClick={toggleTheme} title={theme === 'dark' ? 'Mode terang' : 'Mode gelap'}
-            style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             <Icon name={theme === 'dark' ? 'Sun' : 'Moon'} size={13} />
           </button>
           <button onClick={onOpenSettings} title="Pengaturan"
-            style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            style={{ background: 'var(--hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: 8, padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             <Icon name="Settings" size={13} />
           </button>
           <button onClick={onLogout} title="Keluar"
@@ -95,21 +95,21 @@ export default function Header({ wsStatus, notifStatus, onRequestNotif, activePa
       </div>
 
       {/* Navigation tabs */}
-      <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '5px 12px', overflowX: 'auto', display: 'flex', gap: 3, scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '4px 10px', overflowX: 'auto', display: 'flex', gap: 3, scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
         {TABS.map(tab => {
           const isActive = activePage === tab.id;
           return (
             <button key={tab.id} onClick={() => onChangePage(tab.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', whiteSpace: 'nowrap',
-                fontSize: 11, fontWeight: isActive ? 600 : 500,
+                display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', whiteSpace: 'nowrap',
+                fontSize: 10.5, fontWeight: isActive ? 600 : 500,
                 color: isActive ? 'var(--accent)' : 'var(--text-muted)',
                 background: isActive ? 'rgba(99,102,241,0.12)' : 'transparent',
                 border: `1px solid ${isActive ? 'rgba(99,102,241,0.30)' : 'transparent'}`,
                 borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'all 0.15s', flexShrink: 0,
               }}>
-              <Icon name={tab.icon} size={13} />
+              <Icon name={tab.icon} size={12} />
               {tab.label}
             </button>
           );

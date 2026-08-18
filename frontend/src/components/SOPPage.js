@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { categoryMeta, jobDescription } from '../data/sopData';
+import ActionMenu from './ActionMenu';
 import Icon from './Icon';
 
 const API = process.env.REACT_APP_API_URL || '';
@@ -200,19 +201,11 @@ export default function SOPPage() {
                       {sop.no} · {meta.label}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginRight: 8 }}>
-                    <button onClick={e => { e.stopPropagation(); openEdit(sop); }}
-                      title="Edit"
-                      style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--hover)', border: '1px solid var(--border)',
-                        color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name="Pencil" size={12} />
-                    </button>
-                    <button onClick={e => { e.stopPropagation(); setConfirmDelete(sop); }}
-                      title="Hapus"
-                      style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--hover)', border: '1px solid var(--border)',
-                        color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name="Trash2" size={12} />
-                    </button>
+                  <div style={{ flexShrink: 0, marginRight: 8 }}>
+                    <ActionMenu actions={[
+                      { label: 'Edit', icon: '✏️', color: 'var(--info)', onClick: () => openEdit(sop) },
+                      { label: 'Hapus', icon: '🗑️', color: 'var(--danger)', onClick: () => setConfirmDelete(sop) },
+                    ]} />
                   </div>
                   <div style={{ fontSize: 14, color: 'var(--text-faint)', transform: isOpen ? 'rotate(90deg)' : 'none',
                     transition: 'transform 0.15s', flexShrink: 0 }}>&rsaquo;</div>
