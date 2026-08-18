@@ -170,7 +170,7 @@ export default function RemindersPage({ wsRef }) {
         <button className="btn-primary" onClick={openAdd} style={{ fontSize: 11, padding: '8px 14px' }}>+ Tambah Reminder</button>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden table-scroll">
         <table>
           <thead>
             <tr>

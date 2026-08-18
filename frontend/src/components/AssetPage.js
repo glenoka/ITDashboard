@@ -174,7 +174,7 @@ export default function AssetPage({ wsRef }) {
         </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden table-scroll">
         <table>
           <thead>
             <tr>

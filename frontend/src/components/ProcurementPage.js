@@ -162,7 +162,7 @@ export default function ProcurementPage({ wsRef }) {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden table-scroll">
         <table>
           <thead>
             <tr>

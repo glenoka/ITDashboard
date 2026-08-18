@@ -219,6 +219,11 @@ function initScheduleSettingsTable() {
 
 // ── REMINDERS (aset & custom) ────────────────────────────────────────────────
 
+function getLocalNow() {
+  const d = new Date();
+  return d.toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace('T', ' ');
+}
+
 function initAssetRemindersTable() {
   try {
     db.run(`CREATE TABLE IF NOT EXISTS asset_reminders (
@@ -241,7 +246,7 @@ function initAssetRemindersTable() {
 }
 
 function computeNextReminder(type, interval, from) {
-  const d = new Date(from || Date.now());
+  const d = from ? new Date(from.replace(' ', 'T') + '+08:00') : new Date();
   const n = Math.max(1, parseInt(interval) || 1);
   switch (type) {
     case 'once': break;
@@ -252,15 +257,16 @@ function computeNextReminder(type, interval, from) {
     case 'custom': d.setDate(d.getDate() + n); break;
     default: d.setDate(d.getDate() + n);
   }
-  return d.toISOString().slice(0, 19).replace('T', ' ');
+  return d.toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' }).replace('T', ' ');
 }
 
 async function processAssetReminders() {
   try {
     const s = getTelegramSettings();
     if (!s.enabled || !s.bot_token || !s.chat_id) return;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = getLocalNow();
     const due = dbAll("SELECT * FROM asset_reminders WHERE status = 'active' AND next_reminder <= ?", [now]);
+    if (due.length > 0) console.log(`[Reminder] ${due.length} due at ${now}`);
     for (const r of due) {
       const isAsset = !!r.asset_id;
       const displayName = r.title || r.asset_name || (isAsset ? 'Aset #' + r.asset_id : 'Reminder');
@@ -1153,7 +1159,7 @@ async function handleTelegramCallback(cq) {
     const rid = parseInt(data.split(':')[1], 10);
     const rem = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]);
     if (rem) {
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const now = getLocalNow();
       dbRun('UPDATE asset_reminders SET status=?, updated_at=? WHERE id=?', ['completed', now, rid]);
       broadcast({ type: 'reminder_completed', reminderId: rid });
       const displayName = rem.title || rem.asset_name || (rem.asset_id ? 'Aset #' + rem.asset_id : 'Reminder');
@@ -1174,7 +1180,7 @@ async function handleTelegramCallback(cq) {
     const dateStr = parts[2];
     const rem = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]);
     if (rem) {
-      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const now = getLocalNow();
       const nextDate = dateStr + ' 08:00:00';
       dbRun('UPDATE asset_reminders SET next_reminder=?, status=?, updated_at=? WHERE id=?', [nextDate, 'active', now, rid]);
       broadcast({ type: 'reminder_snoozed', reminder: dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]) });
@@ -1533,7 +1539,7 @@ app.put('/api/asset-reminders/:id', (req, res) => {
   dbRun(
     'UPDATE asset_reminders SET asset_id=?, asset_name=?, title=?, reminder_type=?, reminder_interval=?, next_reminder=?, status=?, notes=?, updated_at=? WHERE id=?',
     [resolvedAssetId, assetName, reminderTitle || existing.title || assetName, type, interval, next, sts,
-     notes !== undefined ? notes : existing.notes, new Date().toISOString().slice(0, 19).replace('T', ' '), req.params.id]
+     notes !== undefined ? notes : existing.notes, getLocalNow(), req.params.id]
   );
   const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
   broadcast({ type: 'reminder_updated', reminder });
@@ -1553,7 +1559,7 @@ app.delete('/api/asset-reminders/:id', (req, res) => {
 app.post('/api/asset-reminders/:id/complete', (req, res) => {
   const existing = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Reminder tidak ditemukan' });
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const now = getLocalNow();
   dbRun('UPDATE asset_reminders SET status=?, updated_at=? WHERE id=?', ['completed', now, req.params.id]);
   broadcast({ type: 'reminder_completed', reminderId: parseInt(req.params.id) });
   res.json({ ok: true });
@@ -1570,7 +1576,7 @@ app.post('/api/asset-reminders/:id/snooze', (req, res) => {
   } else {
     nextDate = computeNextReminder('daily', 1);
   }
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const now = getLocalNow();
   dbRun('UPDATE asset_reminders SET next_reminder=?, status=?, updated_at=? WHERE id=?', [nextDate, 'active', now, req.params.id]);
   const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
   broadcast({ type: 'reminder_snoozed', reminder });
