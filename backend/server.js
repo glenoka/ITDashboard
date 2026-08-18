@@ -99,6 +99,17 @@ async function initDB() {
   saveDB();
 }
 
+function getScheduleSettings() {
+  const row = dbGet('SELECT * FROM schedule_settings WHERE id = 1');
+  if (!row) return { report_hour: 7, report_minute: 0, backup_hour: 2, backup_minute: 0 };
+  return {
+    report_hour: row.report_hour ?? 7,
+    report_minute: row.report_minute ?? 0,
+    backup_hour: row.backup_hour ?? 2,
+    backup_minute: row.backup_minute ?? 0,
+  };
+}
+
 function saveDB() {
   const data = db.export();
   fs.writeFileSync(DB_PATH, Buffer.from(data));
@@ -185,6 +196,105 @@ function getTelegramStatusSettings() {
   const out = {};
   TELEGRAM_STATUS_CATEGORIES.forEach(c => { out[c] = row[c] !== undefined ? !!row[c] : true; });
   return out;
+}
+
+// ── SCHEDULE SETTINGS ────────────────────────────────────────────────────────
+
+function initScheduleSettingsTable() {
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS schedule_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      report_hour INTEGER DEFAULT 7,
+      report_minute INTEGER DEFAULT 0,
+      backup_hour INTEGER DEFAULT 2,
+      backup_minute INTEGER DEFAULT 0
+    )`);
+    const existing = dbGet('SELECT id FROM schedule_settings WHERE id = 1');
+    if (!existing) {
+      dbRun('INSERT INTO schedule_settings (id, report_hour, report_minute, backup_hour, backup_minute) VALUES (1, 7, 0, 2, 0)');
+    }
+    saveDB();
+  } catch (e) { console.error('[Schedule] init error:', e.message); }
+}
+
+// ── ASSET REMINDERS ──────────────────────────────────────────────────────────
+
+function initAssetRemindersTable() {
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS asset_reminders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER,
+      asset_name TEXT DEFAULT '',
+      reminder_type TEXT DEFAULT 'monthly',
+      reminder_interval INTEGER DEFAULT 1,
+      next_reminder DATETIME,
+      last_reminder DATETIME,
+      status TEXT DEFAULT 'active',
+      notes TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    saveDB();
+  } catch (e) { console.error('[Reminder] init error:', e.message); }
+}
+
+function computeNextReminder(type, interval, from) {
+  const d = new Date(from || Date.now());
+  const n = Math.max(1, parseInt(interval) || 1);
+  switch (type) {
+    case 'daily': d.setDate(d.getDate() + n); break;
+    case 'weekly': d.setDate(d.getDate() + n * 7); break;
+    case 'monthly': d.setMonth(d.getMonth() + n); break;
+    case 'yearly': d.setFullYear(d.getFullYear() + n); break;
+    case 'custom': d.setDate(d.getDate() + n); break;
+    default: d.setDate(d.getDate() + n);
+  }
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+async function processAssetReminders() {
+  try {
+    const s = getTelegramSettings();
+    if (!s.enabled || !s.bot_token || !s.chat_id) return;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const due = dbAll("SELECT * FROM asset_reminders WHERE status = 'active' AND next_reminder <= ?", [now]);
+    for (const r of due) {
+      const text = [
+        `<b>🔔 Reminder Maintenance Aset</b>`,
+        ``,
+        `📦 <b>${escapeHtml(r.asset_name || 'Aset #' + r.asset_id)}</b>`,
+        `📋 Tipe: ${r.reminder_type}${r.reminder_type === 'custom' ? ' (setiap ' + r.reminder_interval + ' hari)' : ''}`,
+        r.notes ? `📝 Catatan: ${escapeHtml(r.notes)}` : '',
+        `⏰ Jadwal: ${r.next_reminder}`,
+      ].filter(Boolean).join('\n');
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: '✅ Selesai', callback_data: `reminder_done:${r.id}` },
+            { text: '📅 Tunda', callback_data: `reminder_snooze:${r.id}` },
+          ],
+        ],
+      };
+      for (const chatId of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
+        await telegramSendText(chatId, text, { reply_markup: keyboard });
+      }
+      const nextDate = computeNextReminder(r.reminder_type, r.reminder_interval, r.next_reminder);
+      dbRun('UPDATE asset_reminders SET last_reminder=?, next_reminder=?, updated_at=? WHERE id=?',
+        [now, nextDate, now, r.id]);
+    }
+  } catch (e) { console.error('[Reminder] process error:', e.message); }
+}
+
+function reminderSnoozeKeyboard(reminderId) {
+  const dates = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const label = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+    const ymd = d.toISOString().slice(0, 10);
+    dates.push({ text: label, callback_data: `reminder_snooze:${reminderId}:${ymd}` });
+  }
+  return { inline_keyboard: [dates.slice(0, 4), dates.slice(4, 7), [{ text: '🏠 Menu Utama', callback_data: 'home' }]] };
 }
 
 async function telegramApi(method, payload = {}, timeout = 15000) {
@@ -322,7 +432,8 @@ const HELP_TEXT = [
   '/project — list project yang masih pending (tekan ✅ untuk tick)',
   '/project_add &lt;judul&gt; — tambah project task baru',
   '/order_add — mulai tambah order (ikuti pertanyaan PR & item)',
-  '/ping &lt;ip&gt; — ping host/IP',
+  '/reminder — list reminder maintenance aset aktif',
+  '/ping &lt;ip&gt; — host/IP',
   '/status — ringkasan host, CCTV, UniFi, Ruijie, PR/Order & project',
   '/stats — ringkasan sistem & bandwidth',
   '/testbw — internet speed test manual (download/upload/ping)',
@@ -334,6 +445,7 @@ const HELP_TEXT = [
   '',
   '<b>➕ Tambah Order:</b> tekan tombol <b>📦 PR/Order</b> di menu, lalu <b>Tambah Order</b>, ikuti pertanyaan kode PR & item.',
   '<b>✅ Project:</b> pesan <b>/project</b> punya tombol untuk menandai selesai.',
+  '<b>🔔 Reminder Maintenance:</b> reminder otomatis dikirim ke Telegram, tekan <b>✅ Selesai</b> atau <b>📅 Tunda</b>.',
 ].join('\n');
 
 function formatCctvList(cams) {
@@ -361,6 +473,26 @@ async function sendCctvSnapshot(chatId, keyword, cams) {
   } catch (e) {
     return telegramSendText(chatId, `Gagal mengambil snapshot "${cam.name}". Kamera mungkin tidak terjangkau.`);
   }
+}
+
+async function sendReminderList(chatId) {
+  const reminders = dbAll(
+    `SELECT r.*, a.asset_code FROM asset_reminders r
+     LEFT JOIN it_assets a ON a.id = r.asset_id
+     WHERE r.status = 'active'
+     ORDER BY r.next_reminder ASC`
+  );
+  if (reminders.length === 0) {
+    return telegramSendText(chatId, '<b>🔔 Reminder Maintenance</b>\n\nTidak ada reminder aktif saat ini.', { reply_markup: TG_KEYBOARD_MAIN });
+  }
+  const lines = ['<b>🔔 Reminder Maintenance Aktif:</b>', ''];
+  reminders.forEach((r, i) => {
+    const nextDate = r.next_reminder ? new Date(r.next_reminder).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+    const typeLabel = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan', yearly: 'Tahunan', custom: `Custom (${r.reminder_interval}h)` }[r.reminder_type] || r.reminder_type;
+    lines.push(`${i + 1}. <b>${escapeHtml(r.asset_name || 'Aset #' + r.asset_id)}</b> — ${typeLabel}`);
+    lines.push(`   📅 ${nextDate}${r.notes ? ' • ' + escapeHtml(r.notes) : ''}`);
+  });
+  return telegramSendText(chatId, lines.join('\n'), { reply_markup: TG_KEYBOARD_MAIN });
 }
 
 async function sendHostStatus(chatId) {
@@ -831,11 +963,14 @@ function startDailyJobs() {
     const now = new Date();
     const ymd = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     const hhmm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-    if (hhmm >= '02:00' && lastBackupDate !== ymd) {
+    const sched = getScheduleSettings();
+    const backupTime = String(sched.backup_hour || 0).padStart(2, '0') + ':' + String(sched.backup_minute || 0).padStart(2, '0');
+    const reportTime = String(sched.report_hour || 7).padStart(2, '0') + ':' + String(sched.report_minute || 0).padStart(2, '0');
+    if (hhmm >= backupTime && lastBackupDate !== ymd) {
       lastBackupDate = ymd;
       runDailyBackup();
     }
-    if (hhmm >= '07:00' && lastReportDate !== ymd) {
+    if (hhmm >= reportTime && lastReportDate !== ymd) {
       lastReportDate = ymd;
       try {
         const st = await runSpeedTest();
@@ -844,6 +979,7 @@ function startDailyJobs() {
         console.log('[report] error:', e.message);
       }
     }
+    processAssetReminders();
   };
   check();
   setInterval(check, 60000);
@@ -891,6 +1027,7 @@ async function handleTelegramMessage(msg) {
   if (cmd === '/order_add') return sendProcurementAddStart(msg.chat.id);
   if (cmd === '/project') return sendProjectPending(msg.chat.id);
   if (cmd === '/project_add') return sendProjectAdd(msg.chat.id, rest.join(' '));
+  if (cmd === '/reminder') return sendReminderList(msg.chat.id);
   if (cmd === '/ping') return sendPing(msg.chat.id, rest.join(' '));
   if (cmd === '/cctv') {
     const cams = dbAll('SELECT * FROM cctv_cameras ORDER BY id ASC');
@@ -996,6 +1133,58 @@ async function handleTelegramCallback(cq) {
     if (cq.message && cq.message.message_id) {
       await telegramEditMessageText(chatId, cq.message.message_id, msg.text, msg.keyboard || { inline_keyboard: [] });
     }
+    return;
+  }
+  if (data.startsWith('reminder_done:')) {
+    const rid = parseInt(data.split(':')[1], 10);
+    const rem = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]);
+    if (rem) {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      dbRun('UPDATE asset_reminders SET status=?, updated_at=? WHERE id=?', ['completed', now, rid]);
+      broadcast({ type: 'reminder_completed', reminderId: rid });
+      await telegramAnswerCallbackQuery(id, `✅ ${rem.asset_name || 'Reminder'} selesai`);
+      if (cq.message && cq.message.message_id) {
+        await telegramEditMessageText(chatId, cq.message.message_id,
+          `<b>✅ Maintenance Selesai</b>\n\n📦 ${escapeHtml(rem.asset_name || 'Aset #' + rem.asset_id)}\n⏰ Diselesaikan: ${new Date().toLocaleString('id-ID')}`,
+          { inline_keyboard: [[{ text: '🏠 Menu Utama', callback_data: 'home' }]] });
+      }
+    } else {
+      await telegramAnswerCallbackQuery(id, 'Reminder tidak ditemukan');
+    }
+    return;
+  }
+  if (data.match(/^reminder_snooze:\d+:\d{4}-\d{2}-\d{2}$/)) {
+    const parts = data.split(':');
+    const rid = parseInt(parts[1], 10);
+    const dateStr = parts[2];
+    const rem = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]);
+    if (rem) {
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const nextDate = dateStr + ' 08:00:00';
+      dbRun('UPDATE asset_reminders SET next_reminder=?, status=?, updated_at=? WHERE id=?', [nextDate, 'active', now, rid]);
+      broadcast({ type: 'reminder_snoozed', reminder: dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]) });
+      await telegramAnswerCallbackQuery(id, `📅 Dihadapkan ke ${dateStr}`);
+      if (cq.message && cq.message.message_id) {
+        const displayDate = new Date(dateStr + 'T08:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        await telegramEditMessageText(chatId, cq.message.message_id,
+          `<b>📅 Reminder Ditunda</b>\n\n📦 ${escapeHtml(rem.asset_name)}\n📅 Jadwal baru: ${displayDate}`,
+          { inline_keyboard: [[{ text: '🏠 Menu Utama', callback_data: 'home' }]] });
+      }
+    } else {
+      await telegramAnswerCallbackQuery(id, 'Reminder tidak ditemukan');
+    }
+    return;
+  }
+  if (data.match(/^reminder_snooze:\d+$/)) {
+    const rid = parseInt(data.split(':')[1], 10);
+    const rem = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]);
+    if (rem) {
+      await telegramAnswerCallbackQuery(id, 'Pilih tanggal tunda');
+      return telegramSendText(chatId,
+        `<b>📅 Tunda Reminder</b>\n\n📦 ${escapeHtml(rem.asset_name)}\nPilih tanggal baru:`,
+        { reply_markup: reminderSnoozeKeyboard(rid) });
+    }
+    await telegramAnswerCallbackQuery(id, 'Reminder tidak ditemukan');
     return;
   }
   if (data === 'help' || data === 'home') {
@@ -1243,6 +1432,117 @@ app.post('/api/notifications/telegram/test', async (req, res) => {
   } catch (e) {
     res.status(400).json({ ok: false, error: 'Gagal kirim test: ' + (e.response?.data?.description || e.message) });
   }
+});
+
+// ── SCHEDULE SETTINGS API ────────────────────────────────────────────────────
+
+app.get('/api/settings/schedule', (req, res) => {
+  res.json(getScheduleSettings());
+});
+
+app.put('/api/settings/schedule', (req, res) => {
+  const { report_hour, report_minute, backup_hour, backup_minute } = req.body || {};
+  const rh = Math.min(23, Math.max(0, parseInt(report_hour) || 7));
+  const rm = Math.min(59, Math.max(0, parseInt(report_minute) || 0));
+  const bh = Math.min(23, Math.max(0, parseInt(backup_hour) || 2));
+  const bm = Math.min(59, Math.max(0, parseInt(backup_minute) || 0));
+  dbRun('UPDATE schedule_settings SET report_hour=?, report_minute=?, backup_hour=?, backup_minute=? WHERE id=1', [rh, rm, bh, bm]);
+  res.json({ ok: true, report_hour: rh, report_minute: rm, backup_hour: bh, backup_minute: bm });
+});
+
+// ── ASSET REMINDERS API ──────────────────────────────────────────────────────
+
+// GET /api/asset-reminders?status=&asset_id=
+app.get('/api/asset-reminders', (req, res) => {
+  let where = [];
+  let params = [];
+  const { status, asset_id } = req.query;
+  if (status && status !== 'all') { where.push('r.status = ?'); params.push(status); }
+  if (asset_id) { where.push('r.asset_id = ?'); params.push(parseInt(asset_id)); }
+  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const rows = dbAll(
+    `SELECT r.*, a.asset_code, a.item_name as asset_item_name, a.brand as asset_brand, a.location as asset_location
+     FROM asset_reminders r
+     LEFT JOIN it_assets a ON a.id = r.asset_id
+     ${whereClause}
+     ORDER BY r.next_reminder ASC`,
+    params
+  );
+  res.json({ reminders: rows });
+});
+
+// POST /api/asset-reminders
+app.post('/api/asset-reminders', (req, res) => {
+  const { asset_id, reminder_type, reminder_interval, next_reminder, notes } = req.body || {};
+  if (!asset_id) return res.status(400).json({ error: 'Aset wajib dipilih' });
+  const asset = dbGet('SELECT * FROM it_assets WHERE id = ?', [parseInt(asset_id)]);
+  if (!asset) return res.status(400).json({ error: 'Aset tidak ditemukan' });
+  const type = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(reminder_type) ? reminder_type : 'monthly';
+  const interval = Math.max(1, parseInt(reminder_interval) || 1);
+  const next = next_reminder || computeNextReminder(type, interval);
+  const id = dbRun(
+    'INSERT INTO asset_reminders (asset_id, asset_name, reminder_type, reminder_interval, next_reminder, notes) VALUES (?,?,?,?,?,?)',
+    [asset.id, asset.item_name, type, interval, next, notes || '']
+  );
+  const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [parseInt(id)]);
+  broadcast({ type: 'reminder_added', reminder });
+  res.json(reminder);
+});
+
+// PUT /api/asset-reminders/:id
+app.put('/api/asset-reminders/:id', (req, res) => {
+  const { asset_id, reminder_type, reminder_interval, next_reminder, status, notes } = req.body || {};
+  const existing = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Reminder tidak ditemukan' });
+  const type = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(reminder_type) ? reminder_type : existing.reminder_type;
+  const interval = Math.max(1, parseInt(reminder_interval) || existing.reminder_interval);
+  const sts = ['active', 'completed', 'paused'].includes(status) ? status : existing.status;
+  const next = next_reminder || existing.next_reminder;
+  dbRun(
+    'UPDATE asset_reminders SET asset_id=?, asset_name=?, reminder_type=?, reminder_interval=?, next_reminder=?, status=?, notes=?, updated_at=? WHERE id=?',
+    [asset_id || existing.asset_id, asset_id ? (dbGet('SELECT item_name FROM it_assets WHERE id = ?', [parseInt(asset_id)])?.item_name || existing.asset_name) : existing.asset_name,
+     type, interval, next, sts, notes !== undefined ? notes : existing.notes, new Date().toISOString().slice(0, 19).replace('T', ' '), req.params.id]
+  );
+  const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
+  broadcast({ type: 'reminder_updated', reminder });
+  res.json(reminder);
+});
+
+// DELETE /api/asset-reminders/:id
+app.delete('/api/asset-reminders/:id', (req, res) => {
+  const existing = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Reminder tidak ditemukan' });
+  dbRun('DELETE FROM asset_reminders WHERE id = ?', [req.params.id]);
+  broadcast({ type: 'reminder_deleted', reminderId: parseInt(req.params.id) });
+  res.json({ ok: true });
+});
+
+// POST /api/asset-reminders/:id/complete
+app.post('/api/asset-reminders/:id/complete', (req, res) => {
+  const existing = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Reminder tidak ditemukan' });
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  dbRun('UPDATE asset_reminders SET status=?, updated_at=? WHERE id=?', ['completed', now, req.params.id]);
+  broadcast({ type: 'reminder_completed', reminderId: parseInt(req.params.id) });
+  res.json({ ok: true });
+});
+
+// POST /api/asset-reminders/:id/snooze
+app.post('/api/asset-reminders/:id/snooze', (req, res) => {
+  const { date } = req.body || {};
+  const existing = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Reminder tidak ditemukan' });
+  let nextDate;
+  if (date) {
+    nextDate = date + ' 08:00:00';
+  } else {
+    nextDate = computeNextReminder('daily', 1);
+  }
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  dbRun('UPDATE asset_reminders SET next_reminder=?, status=?, updated_at=? WHERE id=?', [nextDate, 'active', now, req.params.id]);
+  const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
+  broadcast({ type: 'reminder_snoozed', reminder });
+  res.json(reminder);
 });
 
 // ── REST API ──────────────────────────────────────────────────────────────────
@@ -1503,6 +1803,8 @@ initDB().then(() => {
   initProjectTasksTable();
   initProcurementTable();
   initSopTable();
+  initScheduleSettingsTable();
+  initAssetRemindersTable();
   server.listen(PORT, () => {
     console.log(`\n  DASHBOARD IT - System Monitoring`);
     console.log(`  http://localhost:${PORT}`);

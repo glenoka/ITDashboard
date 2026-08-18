@@ -13,11 +13,14 @@ const STATUS_CATEGORIES = [
   { id: 'project', label: 'Project' },
 ];
 
+function padTime(n) { return String(n || 0).padStart(2, '0'); }
+
 export default function TelegramSettingsModal({ onClose }) {
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState({ host: true, cctv: true, unifi: true, ruijie: true, procurement: true, project: true });
+  const [schedule, setSchedule] = useState({ report_hour: 7, report_minute: 0, backup_hour: 2, backup_minute: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -25,12 +28,16 @@ export default function TelegramSettingsModal({ onClose }) {
   const [isErr, setIsErr] = useState(false);
 
   useEffect(() => {
-    axios.get(`${API}/api/notifications/telegram/settings`)
-      .then(res => {
-        setBotToken(res.data.bot_token || '');
-        setChatId(res.data.chat_id || '');
-        setEnabled(!!res.data.enabled);
-        if (res.data.status) setStatus({ ...status, ...res.data.status });
+    Promise.all([
+      axios.get(`${API}/api/notifications/telegram/settings`),
+      axios.get(`${API}/api/settings/schedule`),
+    ])
+      .then(([tgRes, schedRes]) => {
+        setBotToken(tgRes.data.bot_token || '');
+        setChatId(tgRes.data.chat_id || '');
+        setEnabled(!!tgRes.data.enabled);
+        if (tgRes.data.status) setStatus(s => ({ ...s, ...tgRes.data.status }));
+        if (schedRes.data) setSchedule(s => ({ ...s, ...schedRes.data }));
       })
       .catch(() => setMsg('Gagal memuat pengaturan'))
       .finally(() => setLoading(false));
@@ -43,7 +50,10 @@ export default function TelegramSettingsModal({ onClose }) {
     setMsg(''); setIsErr(false);
     setSaving(true);
     try {
-      await axios.put(`${API}/api/notifications/telegram/settings`, { bot_token: botToken, chat_id: chatId, enabled, status });
+      await Promise.all([
+        axios.put(`${API}/api/notifications/telegram/settings`, { bot_token: botToken, chat_id: chatId, enabled, status }),
+        axios.put(`${API}/api/settings/schedule`, schedule),
+      ]);
       setMsg('Pengaturan tersimpan'); setIsErr(false);
     } catch (e) {
       setMsg(e?.response?.data?.error || 'Gagal menyimpan'); setIsErr(true);
@@ -70,9 +80,16 @@ export default function TelegramSettingsModal({ onClose }) {
     fontFamily: 'var(--mono)',
   };
 
+  const timeInputStyle = {
+    width: 70, boxSizing: 'border-box', background: 'var(--input-bg)',
+    border: '1px solid var(--border)', color: 'var(--text)',
+    padding: '9px 8px', borderRadius: 10, fontSize: 12, outline: 'none',
+    fontFamily: 'var(--mono)', textAlign: 'center',
+  };
+
   return (
     <div className="modal-overlay">
-      <div className="modal pop-in" style={{ maxWidth: 440, padding: 24 }} onClick={e => e.stopPropagation()}>
+      <div className="modal pop-in" style={{ maxWidth: 440, padding: 24, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <Icon name="Send" size={18} color="var(--accent)" />
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Notifikasi Telegram</span>
@@ -93,7 +110,7 @@ export default function TelegramSettingsModal({ onClose }) {
             <input value={chatId} onChange={e => setChatId(e.target.value)}
               placeholder="123456789" style={fieldStyle} />
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 6 }}>Grup: -100xxx. Beberapa id dipisah koma.</div>
-            <div style={{ fontSize: 10.5, color: 'var(--warning)', marginTop: 4 }}>⚠️ Chat ID adalah ID akun <b>Anda</b> (cek via @userinfobot), bukan ID bot (angka sebelum titik dua di token).</div>
+            <div style={{ fontSize: 10.5, color: 'var(--warning)', marginTop: 4 }}>Chat ID adalah ID akun <b>Anda</b> (cek via @userinfobot), bukan ID bot (angka sebelum titik dua di token).</div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, padding: '8px 10px', borderRadius: 10, background: 'var(--input-bg)', border: '1px solid var(--border)' }}>
               <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Aktifkan notifikasi otomatis</span>
@@ -130,6 +147,42 @@ export default function TelegramSettingsModal({ onClose }) {
               Kategori yang di-check akan ditampilkan di perintah /status. CCTV, UniFi, Ruijie, PR/Order &amp; Project hanya menampilkan jumlah, Host menampilkan detail yang down saja.
             </div>
 
+            {/* Jadwal Otomatis */}
+            <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 10, background: 'var(--input-bg)', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="Clock" size={13} /> Jadwal Otomatis
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Laporan Harian</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input type="number" min={0} max={23} value={padTime(schedule.report_hour)}
+                      onChange={e => setSchedule(s => ({ ...s, report_hour: parseInt(e.target.value) || 0 }))}
+                      style={timeInputStyle} />
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>:</span>
+                    <input type="number" min={0} max={59} value={padTime(schedule.report_minute)}
+                      onChange={e => setSchedule(s => ({ ...s, report_minute: parseInt(e.target.value) || 0 }))}
+                      style={timeInputStyle} />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Backup Database</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input type="number" min={0} max={23} value={padTime(schedule.backup_hour)}
+                      onChange={e => setSchedule(s => ({ ...s, backup_hour: parseInt(e.target.value) || 0 }))}
+                      style={timeInputStyle} />
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>:</span>
+                    <input type="number" min={0} max={59} value={padTime(schedule.backup_minute)}
+                      onChange={e => setSchedule(s => ({ ...s, backup_minute: parseInt(e.target.value) || 0 }))}
+                      style={timeInputStyle} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 9.5, color: 'var(--text-faint)', marginTop: 8 }}>
+                Rotasi backup: 14 file. Waktu dikirim sesuai jam server.
+              </div>
+            </div>
+
             {msg && (
               <div style={{ marginTop: 10, fontSize: 11.5, color: isErr ? 'var(--danger)' : 'var(--success)',
                 background: isErr ? 'rgba(239,68,68,0.10)' : 'rgba(16,185,129,0.10)',
@@ -163,6 +216,7 @@ export default function TelegramSettingsModal({ onClose }) {
             /project — project masih pending (tekan ✅ untuk tick)<br />
             /project_add (judul) — tambah project baru<br />
             /order_add — tambah order (PR &amp; item)<br />
+            /reminder — reminder maintenance aset aktif<br />
             /ping (ip) — ping host/ip<br />
             /status — ringkasan host, CCTV, UniFi, Ruijie, PR/Order &amp; project<br />
             /stats — ringkasan sistem &amp; bandwidth<br />
@@ -172,7 +226,7 @@ export default function TelegramSettingsModal({ onClose }) {
             /help — bantuan
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 8 }}>
-            Backup DB otomatis jam 02:00 &amp; laporan harian jam 07:00 (rotasi backup: 14 file).
+            Reminder maintenance aset dikirim otomatis sesuai jadwal, tekan ✅ Selesai atau 📅 Tunda.
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4 }}>
             Cara setup: buat bot di @BotFather → salin token → tekan Start pada bot → cek Chat ID via @userinfobot.
