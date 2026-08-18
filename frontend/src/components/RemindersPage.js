@@ -6,6 +6,7 @@ import { fmtID } from '../utils/format';
 const API = process.env.REACT_APP_API_URL || '';
 
 const REMINDER_TYPES = [
+  { id: 'once', label: 'Sekali' },
   { id: 'daily', label: 'Harian' },
   { id: 'weekly', label: 'Mingguan' },
   { id: 'monthly', label: 'Bulanan' },
@@ -19,7 +20,7 @@ const REMINDER_STATUS = {
   paused:    { label: 'Jeda', color: 'var(--warning)', bg: 'rgba(251,191,36,0.12)' },
 };
 
-const EMPTY_FORM = { id: null, title: '', asset_id: '', reminder_type: 'monthly', reminder_interval: 1, next_reminder: '', notes: '' };
+const EMPTY_FORM = { id: null, title: '', asset_id: '', reminder_type: 'once', reminder_interval: 1, next_date: '', next_time: '08:00', notes: '' };
 
 export default function RemindersPage({ wsRef }) {
   const [reminders, setReminders] = useState([]);
@@ -60,20 +61,25 @@ export default function RemindersPage({ wsRef }) {
   }, [wsRef, load]);
 
   const openAdd = () => {
-    const today = new Date().toISOString().slice(0, 10);
-    setForm({ id: null, title: '', asset_id: '', reminder_type: 'monthly', reminder_interval: 1, next_reminder: today, notes: '' });
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    setForm({ id: null, title: '', asset_id: '', reminder_type: 'once', reminder_interval: 1, next_date: today, next_time: `${hh}:${mm}`, notes: '' });
     setFormError('');
     setShowForm(true);
   };
 
   const openEdit = (r) => {
+    const dt = r.next_reminder ? r.next_reminder.slice(0, 16) : '';
     setForm({
       id: r.id,
       title: r.title || '',
       asset_id: r.asset_id || '',
-      reminder_type: r.reminder_type || 'monthly',
+      reminder_type: r.reminder_type || 'once',
       reminder_interval: r.reminder_interval || 1,
-      next_reminder: r.next_reminder ? r.next_reminder.slice(0, 10) : '',
+      next_date: dt ? dt.slice(0, 10) : '',
+      next_time: dt ? dt.slice(11, 16) : '08:00',
       notes: r.notes || '',
     });
     setFormError('');
@@ -83,6 +89,7 @@ export default function RemindersPage({ wsRef }) {
   const save = async () => {
     const displayTitle = form.title || (form.asset_id ? assets.find(a => a.id === parseInt(form.asset_id))?.item_name : '');
     if (!displayTitle) { setFormError('Nama reminder atau aset wajib dipilih'); return; }
+    if (!form.next_date) { setFormError('Tanggal wajib diisi'); return; }
     setSaving(true);
     try {
       const payload = {
@@ -90,7 +97,7 @@ export default function RemindersPage({ wsRef }) {
         asset_id: form.asset_id ? parseInt(form.asset_id) : null,
         reminder_type: form.reminder_type,
         reminder_interval: parseInt(form.reminder_interval) || 1,
-        next_reminder: form.next_reminder ? form.next_reminder + ' 08:00:00' : undefined,
+        next_reminder: `${form.next_date} ${form.next_time || '08:00'}:00`,
         notes: form.notes,
       };
       if (form.id) await axios.put(`${API}/api/asset-reminders/${form.id}`, payload);
@@ -181,7 +188,7 @@ export default function RemindersPage({ wsRef }) {
               const st = REMINDER_STATUS[r.status] || REMINDER_STATUS.active;
               const displayName = r.title || r.asset_name || (r.asset_id ? 'Aset #' + r.asset_id : 'Reminder');
               const assetLabel = r.asset_name || (r.asset_id ? '#' + r.asset_id : '-');
-              const nextDate = r.next_reminder ? fmtID(r.next_reminder) : '-';
+              const nextDate = r.next_reminder ? fmtID(r.next_reminder) + ' ' + r.next_reminder.slice(11, 16) : '-';
               const lastDate = r.last_reminder ? fmtID(r.last_reminder) : '-';
               return (
                 <tr key={r.id}>
@@ -254,9 +261,15 @@ export default function RemindersPage({ wsRef }) {
                   <input type="number" className="input" min={1} value={form.reminder_interval} onChange={e => setField('reminder_interval', parseInt(e.target.value) || 1)} />
                 </div>
               )}
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Tanggal Mulai</label>
-                <input type="date" className="input" value={form.next_reminder} onChange={e => setField('next_reminder', e.target.value)} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Tanggal</label>
+                  <input type="date" className="input" value={form.next_date} onChange={e => setField('next_date', e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Jam</label>
+                  <input type="time" className="input" value={form.next_time} onChange={e => setField('next_time', e.target.value)} />
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Catatan</label>

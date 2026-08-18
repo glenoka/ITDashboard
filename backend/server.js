@@ -244,6 +244,7 @@ function computeNextReminder(type, interval, from) {
   const d = new Date(from || Date.now());
   const n = Math.max(1, parseInt(interval) || 1);
   switch (type) {
+    case 'once': break;
     case 'daily': d.setDate(d.getDate() + n); break;
     case 'weekly': d.setDate(d.getDate() + n * 7); break;
     case 'monthly': d.setMonth(d.getMonth() + n); break;
@@ -264,11 +265,13 @@ async function processAssetReminders() {
       const isAsset = !!r.asset_id;
       const displayName = r.title || r.asset_name || (isAsset ? 'Aset #' + r.asset_id : 'Reminder');
       const header = isAsset ? '🔔 Reminder Maintenance Aset' : '🔔 Reminder';
+      const typeLabels = { once: 'Sekali', daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan', yearly: 'Tahunan' };
+      const typeLabel = r.reminder_type === 'custom' ? `Custom (setiap ${r.reminder_interval} hari)` : (typeLabels[r.reminder_type] || r.reminder_type);
       const text = [
         `<b>${header}</b>`,
         ``,
         `📦 <b>${escapeHtml(displayName)}</b>`,
-        `📋 Tipe: ${r.reminder_type}${r.reminder_type === 'custom' ? ' (setiap ' + r.reminder_interval + ' hari)' : ''}`,
+        `📋 Tipe: ${typeLabel}`,
         r.notes ? `📝 Catatan: ${escapeHtml(r.notes)}` : '',
         `⏰ Jadwal: ${r.next_reminder}`,
       ].filter(Boolean).join('\n');
@@ -283,9 +286,14 @@ async function processAssetReminders() {
       for (const chatId of String(s.chat_id).split(',').map(x => x.trim()).filter(Boolean)) {
         await telegramSendText(chatId, text, { reply_markup: keyboard });
       }
-      const nextDate = computeNextReminder(r.reminder_type, r.reminder_interval, r.next_reminder);
-      dbRun('UPDATE asset_reminders SET last_reminder=?, next_reminder=?, updated_at=? WHERE id=?',
-        [now, nextDate, now, r.id]);
+      if (r.reminder_type === 'once') {
+        dbRun('UPDATE asset_reminders SET last_reminder=?, status=?, updated_at=? WHERE id=?',
+          [now, 'completed', now, r.id]);
+      } else {
+        const nextDate = computeNextReminder(r.reminder_type, r.reminder_interval, r.next_reminder);
+        dbRun('UPDATE asset_reminders SET last_reminder=?, next_reminder=?, updated_at=? WHERE id=?',
+          [now, nextDate, now, r.id]);
+      }
     }
   } catch (e) { console.error('[Reminder] process error:', e.message); }
 }
@@ -493,7 +501,7 @@ async function sendReminderList(chatId) {
   const lines = ['<b>🔔 Reminder Aktif:</b>', ''];
   reminders.forEach((r, i) => {
     const nextDate = r.next_reminder ? new Date(r.next_reminder).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
-    const typeLabel = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan', yearly: 'Tahunan', custom: `Custom (${r.reminder_interval}h)` }[r.reminder_type] || r.reminder_type;
+    const typeLabel = { once: 'Sekali', daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan', yearly: 'Tahunan', custom: `Custom (${r.reminder_interval}h)` }[r.reminder_type] || r.reminder_type;
     const displayName = r.title || r.asset_name || (r.asset_id ? 'Aset #' + r.asset_id : 'Reminder');
     lines.push(`${i + 1}. <b>${escapeHtml(displayName)}</b> — ${typeLabel}`);
     lines.push(`   📅 ${nextDate}${r.notes ? ' • ' + escapeHtml(r.notes) : ''}`);
@@ -1483,7 +1491,7 @@ app.get('/api/asset-reminders', (req, res) => {
 // POST /api/asset-reminders
 app.post('/api/asset-reminders', (req, res) => {
   const { title, asset_id, reminder_type, reminder_interval, next_reminder, notes } = req.body || {};
-  const type = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(reminder_type) ? reminder_type : 'monthly';
+  const type = ['once', 'daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(reminder_type) ? reminder_type : 'monthly';
   const interval = Math.max(1, parseInt(reminder_interval) || 1);
   const next = next_reminder || computeNextReminder(type, interval);
   let assetName = '';

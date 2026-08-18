@@ -16,6 +16,7 @@ const STATUS_META = {
 const CATEGORIES = ['Umum', 'Komputer', 'Jaringan', 'CCTV', 'Printer', 'UPS', 'Lainnya'];
 
 const REMINDER_TYPES = [
+  { id: 'once', label: 'Sekali' },
   { id: 'daily', label: 'Harian' },
   { id: 'weekly', label: 'Mingguan' },
   { id: 'monthly', label: 'Bulanan' },
@@ -25,7 +26,7 @@ const REMINDER_TYPES = [
 
 const EMPTY_FORM = { id: null, asset_code: '', item_name: '', brand: '', model: '', serial_no: '', category: 'Umum', location: '', purchase_date: '', purchase_price: 0, warranty_end: '', pic: '', status: 'active', notes: '' };
 
-const EMPTY_REMINDER = { asset_id: null, reminder_type: 'monthly', reminder_interval: 1, next_reminder: '', notes: '' };
+const EMPTY_REMINDER = { asset_id: null, reminder_type: 'once', reminder_interval: 1, next_date: '', next_time: '08:00', notes: '' };
 
 export default function AssetPage({ wsRef }) {
   const [assets, setAssets] = useState([]);
@@ -120,21 +121,24 @@ export default function AssetPage({ wsRef }) {
 
   const openMaintenance = (asset) => {
     setRemTarget(asset);
-    const today = new Date().toISOString().slice(0, 10);
-    setRemForm({ asset_id: asset.id, reminder_type: 'monthly', reminder_interval: 1, next_reminder: today, notes: '' });
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    setRemForm({ asset_id: asset.id, reminder_type: 'once', reminder_interval: 1, next_date: today, next_time: `${hh}:${mm}`, notes: '' });
     setRemError('');
     setShowRemPopup(true);
   };
 
   const saveReminder = async () => {
-    if (!remForm.next_reminder) { setRemError('Tanggal wajib diisi'); return; }
+    if (!remForm.next_date) { setRemError('Tanggal wajib diisi'); return; }
     setSavingRem(true);
     try {
       await axios.post(`${API}/api/asset-reminders`, {
         asset_id: remTarget.id,
         reminder_type: remForm.reminder_type,
         reminder_interval: parseInt(remForm.reminder_interval) || 1,
-        next_reminder: remForm.next_reminder + ' 08:00:00',
+        next_reminder: `${remForm.next_date} ${remForm.next_time || '08:00'}:00`,
         notes: remForm.notes,
       });
       setShowRemPopup(false);
@@ -273,9 +277,15 @@ export default function AssetPage({ wsRef }) {
               {remTarget.asset_code ? remTarget.asset_code + ' — ' : ''}{remTarget.item_name}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Tanggal Mulai</label>
-                <input type="date" className="input" value={remForm.next_reminder} onChange={e => setRemForm(f => ({ ...f, next_reminder: e.target.value }))} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Tanggal</label>
+                  <input type="date" className="input" value={remForm.next_date} onChange={e => setRemForm(f => ({ ...f, next_date: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Jam</label>
+                  <input type="time" className="input" value={remForm.next_time} onChange={e => setRemForm(f => ({ ...f, next_time: e.target.value }))} />
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>Pengulangan</label>
