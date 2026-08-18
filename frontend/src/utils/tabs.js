@@ -8,6 +8,7 @@ export const ALL_TABS = [
   { id: 'ruijie', icon: 'Router', label: 'Ruijie' },
   { id: 'procurement', icon: 'Package', label: 'PR/Order' },
   { id: 'asset', icon: 'Boxes', label: 'Aset IT' },
+  { id: 'reminders', icon: 'Bell', label: 'Reminder' },
   { id: 'sop', icon: 'FileText', label: 'SOP' },
   { id: 'checklist', icon: 'ListChecks', label: 'Checklist' },
   { id: 'history', icon: 'History', label: 'History' },

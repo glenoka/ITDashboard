@@ -16,6 +16,7 @@ import SOPPage from './components/SOPPage';
 import ChecklistPage from './components/ChecklistPage';
 import ProcurementPage from './components/ProcurementPage';
 import AssetPage from './components/AssetPage';
+import RemindersPage from './components/RemindersPage';
 import DashboardPage from './components/DashboardPage';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import SettingsModal from './components/SettingsModal';
@@ -273,6 +274,10 @@ export default function App() {
 
       {activePage === 'asset' && (
         <AssetPage wsRef={wsRef} />
+      )}
+
+      {activePage === 'reminders' && (
+        <RemindersPage wsRef={wsRef} />
       )}
 
       {activePage === 'sop' && (

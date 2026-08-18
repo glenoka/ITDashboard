@@ -217,7 +217,7 @@ function initScheduleSettingsTable() {
   } catch (e) { console.error('[Schedule] init error:', e.message); }
 }
 
-// ── ASSET REMINDERS ──────────────────────────────────────────────────────────
+// ── REMINDERS (aset & custom) ────────────────────────────────────────────────
 
 function initAssetRemindersTable() {
   try {
@@ -225,6 +225,7 @@ function initAssetRemindersTable() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER,
       asset_name TEXT DEFAULT '',
+      title TEXT DEFAULT '',
       reminder_type TEXT DEFAULT 'monthly',
       reminder_interval INTEGER DEFAULT 1,
       next_reminder DATETIME,
@@ -234,6 +235,7 @@ function initAssetRemindersTable() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    try { db.run('ALTER TABLE asset_reminders ADD COLUMN title TEXT DEFAULT ""'); saveDB(); } catch(e) {}
     saveDB();
   } catch (e) { console.error('[Reminder] init error:', e.message); }
 }
@@ -259,10 +261,13 @@ async function processAssetReminders() {
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const due = dbAll("SELECT * FROM asset_reminders WHERE status = 'active' AND next_reminder <= ?", [now]);
     for (const r of due) {
+      const isAsset = !!r.asset_id;
+      const displayName = r.title || r.asset_name || (isAsset ? 'Aset #' + r.asset_id : 'Reminder');
+      const header = isAsset ? '🔔 Reminder Maintenance Aset' : '🔔 Reminder';
       const text = [
-        `<b>🔔 Reminder Maintenance Aset</b>`,
+        `<b>${header}</b>`,
         ``,
-        `📦 <b>${escapeHtml(r.asset_name || 'Aset #' + r.asset_id)}</b>`,
+        `📦 <b>${escapeHtml(displayName)}</b>`,
         `📋 Tipe: ${r.reminder_type}${r.reminder_type === 'custom' ? ' (setiap ' + r.reminder_interval + ' hari)' : ''}`,
         r.notes ? `📝 Catatan: ${escapeHtml(r.notes)}` : '',
         `⏰ Jadwal: ${r.next_reminder}`,
@@ -483,13 +488,14 @@ async function sendReminderList(chatId) {
      ORDER BY r.next_reminder ASC`
   );
   if (reminders.length === 0) {
-    return telegramSendText(chatId, '<b>🔔 Reminder Maintenance</b>\n\nTidak ada reminder aktif saat ini.', { reply_markup: TG_KEYBOARD_MAIN });
+    return telegramSendText(chatId, '<b>🔔 Reminder Aktif</b>\n\nTidak ada reminder aktif saat ini.', { reply_markup: TG_KEYBOARD_MAIN });
   }
-  const lines = ['<b>🔔 Reminder Maintenance Aktif:</b>', ''];
+  const lines = ['<b>🔔 Reminder Aktif:</b>', ''];
   reminders.forEach((r, i) => {
     const nextDate = r.next_reminder ? new Date(r.next_reminder).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
     const typeLabel = { daily: 'Harian', weekly: 'Mingguan', monthly: 'Bulanan', yearly: 'Tahunan', custom: `Custom (${r.reminder_interval}h)` }[r.reminder_type] || r.reminder_type;
-    lines.push(`${i + 1}. <b>${escapeHtml(r.asset_name || 'Aset #' + r.asset_id)}</b> — ${typeLabel}`);
+    const displayName = r.title || r.asset_name || (r.asset_id ? 'Aset #' + r.asset_id : 'Reminder');
+    lines.push(`${i + 1}. <b>${escapeHtml(displayName)}</b> — ${typeLabel}`);
     lines.push(`   📅 ${nextDate}${r.notes ? ' • ' + escapeHtml(r.notes) : ''}`);
   });
   return telegramSendText(chatId, lines.join('\n'), { reply_markup: TG_KEYBOARD_MAIN });
@@ -1142,10 +1148,11 @@ async function handleTelegramCallback(cq) {
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       dbRun('UPDATE asset_reminders SET status=?, updated_at=? WHERE id=?', ['completed', now, rid]);
       broadcast({ type: 'reminder_completed', reminderId: rid });
-      await telegramAnswerCallbackQuery(id, `✅ ${rem.asset_name || 'Reminder'} selesai`);
+      const displayName = rem.title || rem.asset_name || (rem.asset_id ? 'Aset #' + rem.asset_id : 'Reminder');
+      await telegramAnswerCallbackQuery(id, `✅ ${displayName} selesai`);
       if (cq.message && cq.message.message_id) {
         await telegramEditMessageText(chatId, cq.message.message_id,
-          `<b>✅ Maintenance Selesai</b>\n\n📦 ${escapeHtml(rem.asset_name || 'Aset #' + rem.asset_id)}\n⏰ Diselesaikan: ${new Date().toLocaleString('id-ID')}`,
+          `<b>✅ Reminder Selesai</b>\n\n📦 ${escapeHtml(displayName)}\n⏰ Diselesaikan: ${new Date().toLocaleString('id-ID')}`,
           { inline_keyboard: [[{ text: '🏠 Menu Utama', callback_data: 'home' }]] });
       }
     } else {
@@ -1165,9 +1172,10 @@ async function handleTelegramCallback(cq) {
       broadcast({ type: 'reminder_snoozed', reminder: dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]) });
       await telegramAnswerCallbackQuery(id, `📅 Dihadapkan ke ${dateStr}`);
       if (cq.message && cq.message.message_id) {
+        const displayName = rem.title || rem.asset_name || (rem.asset_id ? 'Aset #' + rem.asset_id : 'Reminder');
         const displayDate = new Date(dateStr + 'T08:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         await telegramEditMessageText(chatId, cq.message.message_id,
-          `<b>📅 Reminder Ditunda</b>\n\n📦 ${escapeHtml(rem.asset_name)}\n📅 Jadwal baru: ${displayDate}`,
+          `<b>📅 Reminder Ditunda</b>\n\n📦 ${escapeHtml(displayName)}\n📅 Jadwal baru: ${displayDate}`,
           { inline_keyboard: [[{ text: '🏠 Menu Utama', callback_data: 'home' }]] });
       }
     } else {
@@ -1179,9 +1187,10 @@ async function handleTelegramCallback(cq) {
     const rid = parseInt(data.split(':')[1], 10);
     const rem = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [rid]);
     if (rem) {
+      const displayName = rem.title || rem.asset_name || (rem.asset_id ? 'Aset #' + rem.asset_id : 'Reminder');
       await telegramAnswerCallbackQuery(id, 'Pilih tanggal tunda');
       return telegramSendText(chatId,
-        `<b>📅 Tunda Reminder</b>\n\n📦 ${escapeHtml(rem.asset_name)}\nPilih tanggal baru:`,
+        `<b>📅 Tunda Reminder</b>\n\n📦 ${escapeHtml(displayName)}\nPilih tanggal baru:`,
         { reply_markup: reminderSnoozeKeyboard(rid) });
     }
     await telegramAnswerCallbackQuery(id, 'Reminder tidak ditemukan');
@@ -1473,16 +1482,22 @@ app.get('/api/asset-reminders', (req, res) => {
 
 // POST /api/asset-reminders
 app.post('/api/asset-reminders', (req, res) => {
-  const { asset_id, reminder_type, reminder_interval, next_reminder, notes } = req.body || {};
-  if (!asset_id) return res.status(400).json({ error: 'Aset wajib dipilih' });
-  const asset = dbGet('SELECT * FROM it_assets WHERE id = ?', [parseInt(asset_id)]);
-  if (!asset) return res.status(400).json({ error: 'Aset tidak ditemukan' });
+  const { title, asset_id, reminder_type, reminder_interval, next_reminder, notes } = req.body || {};
   const type = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(reminder_type) ? reminder_type : 'monthly';
   const interval = Math.max(1, parseInt(reminder_interval) || 1);
   const next = next_reminder || computeNextReminder(type, interval);
+  let assetName = '';
+  let resolvedAssetId = null;
+  if (asset_id) {
+    const asset = dbGet('SELECT * FROM it_assets WHERE id = ?', [parseInt(asset_id)]);
+    if (!asset) return res.status(400).json({ error: 'Aset tidak ditemukan' });
+    resolvedAssetId = asset.id;
+    assetName = asset.item_name;
+  }
+  const reminderTitle = title || assetName || 'Reminder';
   const id = dbRun(
-    'INSERT INTO asset_reminders (asset_id, asset_name, reminder_type, reminder_interval, next_reminder, notes) VALUES (?,?,?,?,?,?)',
-    [asset.id, asset.item_name, type, interval, next, notes || '']
+    'INSERT INTO asset_reminders (asset_id, asset_name, title, reminder_type, reminder_interval, next_reminder, notes) VALUES (?,?,?,?,?,?,?)',
+    [resolvedAssetId, assetName, reminderTitle, type, interval, next, notes || '']
   );
   const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [parseInt(id)]);
   broadcast({ type: 'reminder_added', reminder });
@@ -1491,17 +1506,26 @@ app.post('/api/asset-reminders', (req, res) => {
 
 // PUT /api/asset-reminders/:id
 app.put('/api/asset-reminders/:id', (req, res) => {
-  const { asset_id, reminder_type, reminder_interval, next_reminder, status, notes } = req.body || {};
+  const { title, asset_id, reminder_type, reminder_interval, next_reminder, status, notes } = req.body || {};
   const existing = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
   if (!existing) return res.status(404).json({ error: 'Reminder tidak ditemukan' });
   const type = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(reminder_type) ? reminder_type : existing.reminder_type;
   const interval = Math.max(1, parseInt(reminder_interval) || existing.reminder_interval);
   const sts = ['active', 'completed', 'paused'].includes(status) ? status : existing.status;
   const next = next_reminder || existing.next_reminder;
+  let assetName = existing.asset_name;
+  let resolvedAssetId = existing.asset_id;
+  if (asset_id !== undefined && asset_id !== null && asset_id !== '') {
+    const asset = dbGet('SELECT * FROM it_assets WHERE id = ?', [parseInt(asset_id)]);
+    if (asset) { resolvedAssetId = asset.id; assetName = asset.item_name; }
+  } else if (asset_id === '' || asset_id === null) {
+    resolvedAssetId = null; assetName = '';
+  }
+  const reminderTitle = title !== undefined ? title : existing.title;
   dbRun(
-    'UPDATE asset_reminders SET asset_id=?, asset_name=?, reminder_type=?, reminder_interval=?, next_reminder=?, status=?, notes=?, updated_at=? WHERE id=?',
-    [asset_id || existing.asset_id, asset_id ? (dbGet('SELECT item_name FROM it_assets WHERE id = ?', [parseInt(asset_id)])?.item_name || existing.asset_name) : existing.asset_name,
-     type, interval, next, sts, notes !== undefined ? notes : existing.notes, new Date().toISOString().slice(0, 19).replace('T', ' '), req.params.id]
+    'UPDATE asset_reminders SET asset_id=?, asset_name=?, title=?, reminder_type=?, reminder_interval=?, next_reminder=?, status=?, notes=?, updated_at=? WHERE id=?',
+    [resolvedAssetId, assetName, reminderTitle || existing.title || assetName, type, interval, next, sts,
+     notes !== undefined ? notes : existing.notes, new Date().toISOString().slice(0, 19).replace('T', ' '), req.params.id]
   );
   const reminder = dbGet('SELECT * FROM asset_reminders WHERE id = ?', [req.params.id]);
   broadcast({ type: 'reminder_updated', reminder });
