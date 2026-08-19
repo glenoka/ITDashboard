@@ -51,3 +51,13 @@ Frontend dev server proxies `/api/*` and WebSocket to `localhost:3001` via CRA's
 - **Backup files present** (`backend/server - Copy.js`, `backend/noc.db (2).bak`) — avoid editing them; work with the live files.
 - **Data retention:** monitoring logs & status events kept 90 days, bandwidth & system metrics 30 days (hard-coded in `server.js`).
 - **Dev runtime:** backend lama mungkin masih jalan di port 3001/3002 → uji backend baru pakai `PORT` lain yang bebas (cek `Get-NetTCPConnection` bila perlu). **Jangan jalankan 2 instance backend di port yang sama** — akan `EADDRINUSE`. Kalau user mengelola backend sendiri, agent tidak boleh spawn instance kedua di port 3002.
+
+## Knowledge Graph
+
+Project ini sudah di-index oleh **graphify** (v0.9.46). Output ada di `graphify-out/`:
+- `GRAPH_REPORT.md` — overview arsitektur + 23 komunitas kode
+- `graph.json` — data graph (413 nodes, 779 edges)
+- `graph.html` — visualisasi interaktif (buka di browser)
+- `.graphify_analysis.json` — metadata analisis
+
+Saat ada pertanyaan arsitektur / dependensi / struktur code, baca `GRAPH_REPORT.md` dulu untuk context cepat.
