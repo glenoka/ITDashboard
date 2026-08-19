@@ -17,7 +17,7 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
   return (
     <div className="card" style={{ background: 'var(--card)' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex flex-wrap items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)', gap: 8 }}>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>Monitoring</span>
           <span style={{ fontSize: 10, background: 'var(--hover)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: 999 }}>
@@ -25,7 +25,7 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Add host */}
           {onAdd && (
             <button className="btn-primary flex items-center gap-1.5" onClick={onAdd}
@@ -35,13 +35,14 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
           )}
           {/* Search */}
           <input
-            className="input"
-            style={{ width: 160 }}
+            className="input toolbar-search"
+            style={{ width: 160, maxWidth: '100%' }}
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           {/* Filter tabs */}
+          <div className="flex gap-1">
           {['all', 'up', 'down'].map(f => (
             <button
               key={f}
@@ -57,6 +58,7 @@ export default function MonitoringTable({ hosts, onEdit, onDelete, onDetail, onA
               {f === 'all' ? 'Semua' : f === 'up' ? 'Up' : 'Down'}
             </button>
           ))}
+          </div>
         </div>
       </div>
 

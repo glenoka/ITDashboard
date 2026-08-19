@@ -140,7 +140,7 @@ export default function App() {
 
   // WebSocket
   useEffect(() => {
-    const base = API || 'http://localhost:3002';
+    const base = API || (window.location.protocol + '//' + window.location.host);
     const wsUrl = base.replace(/^https/, 'wss').replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(token || '')}`;
     let stopped = false;
     const connect = () => {

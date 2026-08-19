@@ -3,7 +3,6 @@ import axios from 'axios';
 import Icon from './Icon';
 
 const API = process.env.REACT_APP_API_URL || '';
-const BACKEND = API || 'http://localhost:3002';
 
 const CATEGORY_META = {
   host:     { label: 'Host Monitor',  icon: 'Monitor', color: 'var(--info)' },
@@ -72,8 +71,8 @@ export default function HistoryPage({ wsRef }) {
       };
       if (search) params.search = search;
       const [evRes, sumRes] = await Promise.all([
-        axios.get(`${BACKEND}/api/history`, { params }),
-        axios.get(`${BACKEND}/api/history/summary`),
+        axios.get(`${API}/api/history`, { params }),
+        axios.get(`${API}/api/history/summary`),
       ]);
       setEvents(evRes.data.events || []);
       setTotal(evRes.data.total || 0);
@@ -122,7 +121,7 @@ export default function HistoryPage({ wsRef }) {
   const handleClearHistory = async () => {
     try {
       const params = category !== 'all' ? { category } : {};
-      await axios.delete(`${BACKEND}/api/history`, { params });
+      await axios.delete(`${API}/api/history`, { params });
       setConfirmClear(false);
       setPage(0);
       load();
@@ -187,8 +186,7 @@ export default function HistoryPage({ wsRef }) {
 
       {/* Summary cards */}
       {summary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 10, padding: '12px 16px 0' }}>
+        <div className="grid grid-cols-2 md:grid-cols-3" style={{ gap: 10, padding: '12px 16px 0' }}>
           {Object.entries(CATEGORY_META).map(([key, meta]) => {
             const s = summary[key] || { totalEvents: 0, downEvents: 0, upEvents: 0, last24h: 0 };
             return (
@@ -234,7 +232,7 @@ export default function HistoryPage({ wsRef }) {
           onChange={e => setSearchInput(e.target.value)}
           style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)',
             padding: '7px 12px', borderRadius: 999, fontSize: 11.5, fontFamily: 'inherit',
-            outline: 'none', width: 220 }}
+            outline: 'none', width: 220, maxWidth: '100%' }}
         />
 
         <div style={{ display: 'flex', gap: 4 }}>

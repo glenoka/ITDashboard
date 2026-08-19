@@ -41,7 +41,7 @@ export default function LiveModal({ cam, onClose }) {
         if (cancelled) return;
         if (!startRes.data.ok) throw new Error('Backend failed to start stream');
 
-        const hlsUrl = `${API || 'http://localhost:3002'}${startRes.data.url}`;
+        const hlsUrl = `${API || (window.location.protocol + '//' + window.location.host)}${startRes.data.url}`;
 
         // 2. If pending, wait a bit more
         if (startRes.data.pending) await new Promise(r => setTimeout(r, 3000));
