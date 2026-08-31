@@ -17,6 +17,7 @@ function padTime(n) { return String(n || 0).padStart(2, '0'); }
 
 export default function TelegramSettingsModal({ onClose }) {
   const [botToken, setBotToken] = useState('');
+  const [botTokenSet, setBotTokenSet] = useState(false);
   const [chatId, setChatId] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState({ host: true, cctv: true, unifi: true, ruijie: true, procurement: true, project: true });
@@ -34,6 +35,7 @@ export default function TelegramSettingsModal({ onClose }) {
     ])
       .then(([tgRes, schedRes]) => {
         setBotToken(tgRes.data.bot_token || '');
+        setBotTokenSet(!!tgRes.data.bot_token_set);
         setChatId(tgRes.data.chat_id || '');
         setEnabled(!!tgRes.data.enabled);
         if (tgRes.data.status) setStatus(s => ({ ...s, ...tgRes.data.status }));
@@ -106,6 +108,11 @@ export default function TelegramSettingsModal({ onClose }) {
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', marginBottom: 6 }}>Bot Token</div>
             <input type="password" value={botToken} onChange={e => setBotToken(e.target.value)}
               placeholder="123456789:AAHxxx..." style={fieldStyle} />
+            {botTokenSet && (
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4 }}>
+                Token tersimpan &amp; disembunyikan. Isi token baru untuk mengganti.
+              </div>
+            )}
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', marginBottom: 6, marginTop: 12 }}>Chat ID</div>
             <input value={chatId} onChange={e => setChatId(e.target.value)}
               placeholder="123456789" style={fieldStyle} />

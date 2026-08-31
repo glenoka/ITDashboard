@@ -12,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const rateLimit = require('express-rate-limit');
 
 require('dns').setDefaultResultOrder('ipv4first');
 
@@ -1328,6 +1329,9 @@ function initAuthTable() {
   )`);
   const row = dbGet('SELECT id FROM app_settings WHERE id = 1');
   if (!row) {
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn('[SECURITY] ADMIN_PASSWORD tidak di-set! Menggunakan password default "admin". Set ADMIN_PASSWORD segera di production.');
+    }
     const salt = makeSalt();
     const hash = hashPassword(process.env.ADMIN_PASSWORD || 'admin', salt);
     dbRun('INSERT INTO app_settings (id, admin_password_hash, admin_password_salt) VALUES (1, ?, ?)', [hash, salt]);
@@ -1366,8 +1370,16 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// Public: login
-app.post('/api/auth/login', (req, res) => {
+// Public: login — rate-limited (5 percobaan / 10 menit per IP)
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Terlalu banyak percobaan login. Coba lagi dalam 10 menit.' },
+});
+
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { password } = req.body || {};
   if (!password || !verifyPassword(password)) {
     return res.status(401).json({ ok: false, error: 'Password salah' });
@@ -1409,14 +1421,26 @@ app.post('/api/auth/change-password', (req, res) => {
 app.get('/api/notifications/telegram/settings', (req, res) => {
   const s = getTelegramSettings();
   const status = getTelegramStatusSettings();
-  res.json({ bot_token: s.bot_token || '', chat_id: s.chat_id || '', enabled: !!s.enabled, status });
+  const token = s.bot_token || '';
+  // Selalu kirim token ter-mask — jangan pernah expose token utuh ke frontend
+  res.json({
+    bot_token: token ? `***${token.slice(-4)}` : '',
+    bot_token_set: !!token,
+    chat_id: s.chat_id || '',
+    enabled: !!s.enabled,
+    status
+  });
 });
 
 // PUT settings
 app.put('/api/notifications/telegram/settings', (req, res) => {
   const { bot_token, chat_id, enabled, status } = req.body || {};
+  const s = getTelegramSettings();
+  const newToken = String(bot_token || '').trim();
+  // Jangan timpa token tersimpan bila frontend mengirim nilai kosong / ter-mask
+  const finalToken = (!newToken || newToken.startsWith('***')) ? (s.bot_token || '') : newToken;
   dbRun('UPDATE telegram_settings SET bot_token=?, chat_id=?, enabled=? WHERE id=1', [
-    String(bot_token || '').trim(),
+    finalToken,
     String(chat_id || '').trim(),
     enabled ? 1 : 0
   ]);
@@ -2203,13 +2227,21 @@ function keepAliveStream(camId) {
   s.timer = setTimeout(() => stopHLSStream(camId), 60000);
 }
 
-// Serve HLS files (m3u8 + ts segments)
-app.use('/hls', (req, res, next) => {
-  // Keep stream alive when client fetches segments
+// Serve HLS files (m3u8 + ts segments).
+// Mounted di bawah /api sehingga otomatis dilindungi `app.use('/api', requireAuth)`
+// (token via header `Authorization: Bearer` atau query `?token=`).
+app.use('/api/hls', (req, res, next) => {
+  // Keep stream alive when client fetches segments —
+  // hanya untuk camera id yang sah (int > 0 dan terdaftar).
   const parts = req.path.split('/');
-  if (parts.length >= 2) {
-    const camId = parseInt(parts[1]);
-    if (!isNaN(camId)) keepAliveStream(camId);
+  if (parts.length >= 2 && parts[1]) {
+    const camId = parseInt(parts[1], 10);
+    if (!Number.isInteger(camId) || camId <= 0 || String(camId) !== parts[1]) {
+      return res.status(404).json({ error: 'Camera not found' });
+    }
+    const cam = dbGet('SELECT id FROM cctv_cameras WHERE id = ?', [camId]);
+    if (!cam) return res.status(404).json({ error: 'Camera not found' });
+    keepAliveStream(camId);
   }
   next();
 }, express.static(HLS_DIR, {
@@ -2222,7 +2254,6 @@ app.use('/hls', (req, res, next) => {
       res.setHeader('Content-Type', 'video/mp2t');
       res.setHeader('Cache-Control', 'no-cache');
     }
-    res.setHeader('Access-Control-Allow-Origin', '*');
   }
 }));
 
@@ -2236,7 +2267,7 @@ app.post('/api/cctv/:id/stream/start', (req, res) => {
   // Already running
   if (activeStreams[camId]) {
     keepAliveStream(camId);
-    return res.json({ ok: true, streaming: true, url: `/hls/${camId}/stream.m3u8`, existing: true });
+    return res.json({ ok: true, streaming: true, url: `/api/hls/${camId}/stream.m3u8`, existing: true });
   }
 
   startHLSStream(cam);
@@ -2248,12 +2279,12 @@ app.post('/api/cctv/:id/stream/start', (req, res) => {
     waited += 500;
     if (fsSync.existsSync(m3u8Path)) {
       clearInterval(check);
-      return res.json({ ok: true, streaming: true, url: `/hls/${camId}/stream.m3u8` });
+      return res.json({ ok: true, streaming: true, url: `/api/hls/${camId}/stream.m3u8` });
     }
     if (waited >= 8000) {
       clearInterval(check);
       // Return URL anyway — client will retry
-      return res.json({ ok: true, streaming: true, url: `/hls/${camId}/stream.m3u8`, pending: true });
+      return res.json({ ok: true, streaming: true, url: `/api/hls/${camId}/stream.m3u8`, pending: true });
     }
   }, 500);
 });
@@ -2268,7 +2299,7 @@ app.post('/api/cctv/:id/stream/stop', (req, res) => {
 app.get('/api/cctv/:id/stream/status', (req, res) => {
   const camId = parseInt(req.params.id);
   const active = !!activeStreams[camId];
-  res.json({ streaming: active, url: active ? `/hls/${camId}/stream.m3u8` : null });
+  res.json({ streaming: active, url: active ? `/api/hls/${camId}/stream.m3u8` : null });
 });
 
 // Cleanup all streams on exit

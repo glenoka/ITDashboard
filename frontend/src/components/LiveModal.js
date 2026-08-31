@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Icon from './Icon';
+import { authUrl } from '../api';
 
 const API = process.env.REACT_APP_API_URL || '';
 
@@ -41,7 +42,8 @@ export default function LiveModal({ cam, onClose }) {
         if (cancelled) return;
         if (!startRes.data.ok) throw new Error('Backend failed to start stream');
 
-        const hlsUrl = `${API || (window.location.protocol + '//' + window.location.host)}${startRes.data.url}`;
+        // HLS segments diakses via query token (hls.js tidak bisa kirim header auth)
+        const hlsUrl = authUrl(startRes.data.url);
 
         // 2. If pending, wait a bit more
         if (startRes.data.pending) await new Promise(r => setTimeout(r, 3000));
