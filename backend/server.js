@@ -111,9 +111,38 @@ function getScheduleSettings() {
   };
 }
 
+// State untuk penulisan tertunda (koalesensi) — lihat saveDBDeferred().
+let saveTimer = null;
+const SAVE_DEFER_MS = 20000;
+
+// Tulis DB ke disk secara ATOMIK: tulis ke file .tmp lalu rename.
+// rename bersifat atomik sehingga noc.db tidak pernah terbaca dalam keadaan
+// setengah tertulis (mencegah korupsi saat proses mati / power loss, dan
+// membuat backup harian aman).
+function writeDB() {
+  try {
+    const data = db.export();
+    const tmp = DB_PATH + '.tmp';
+    fs.writeFileSync(tmp, Buffer.from(data));
+    fs.renameSync(tmp, DB_PATH);
+  } catch (e) {
+    console.error('[db] gagal menyimpan DB:', e.message);
+  }
+}
+
+// Penulisan LANGSUNG — untuk data bisnis (order, checklist, settings, dsb).
+// Membatalkan jadwal tunda yang tertunda agar tidak menulis dua kali.
 function saveDB() {
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  writeDB();
+}
+
+// Penulisan TERTUNDA (koalesensi) — untuk log monitoring bervolume tinggi.
+// Tiap cek host menulis penuh DB (27MB) ke disk; menulisnya ~12x/menit membuat
+// event loop jenuh. Dengan ini penulisan disk dibatasi maksimal 1x per 20 detik.
+function saveDBDeferred() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => { saveTimer = null; writeDB(); }, SAVE_DEFER_MS);
 }
 
 // Helpers
@@ -133,10 +162,12 @@ function dbGet(sql, params = []) {
   return rows[0] || null;
 }
 
-function dbRun(sql, params = []) {
+function dbRun(sql, params = [], opts = {}) {
   db.run(sql, params);
   const id = db.exec('SELECT last_insert_rowid() as id')[0]?.values[0][0];
-  saveDB();
+  // opts.defer → tunda penulisan disk (log bervolume tinggi) agar tidak menulis
+  // ulang seluruh DB puluhan kali per menit.
+  if (opts.defer) saveDBDeferred(); else saveDB();
   return id;
 }
 
@@ -317,10 +348,34 @@ function reminderSnoozeKeyboard(reminderId) {
   return { inline_keyboard: [dates.slice(0, 4), dates.slice(4, 7), [{ text: '🏠 Menu Utama', callback_data: 'home' }]] };
 }
 
+// Retry helper: koneksi ke Telegram bisa intermiten (mis. saat speedtest/backup
+// memenuhi bandwidth WAN), dan host punya IPv6 ULA tanpa rute → error transien.
+const TG_TRANSIENT_CODES = ['ECONNABORTED','ECONNRESET','ETIMEDOUT','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN','ENOTFOUND','EPIPE','ERR_NETWORK'];
+function isTransientTelegramError(e) {
+  if (e && e.response) return e.response.status >= 500;
+  const code = e && (e.code || (e.cause && e.cause.code));
+  return TG_TRANSIENT_CODES.includes(code);
+}
+async function withTelegramRetry(label, factory, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await factory(); }
+    catch (e) {
+      lastErr = e;
+      if (i === attempts - 1 || !isTransientTelegramError(e)) throw e;
+      const wait = 1500 * (i + 1);
+      console.warn(`[telegram] ${label} gagal (${(e && (e.code || e.message)) || 'unknown'}), coba lagi dalam ${wait}ms`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
+
 async function telegramApi(method, payload = {}, timeout = 15000) {
   const { bot_token } = getTelegramSettings();
   if (!bot_token) return null;
-  const res = await axios.post(`${TG_API}/bot${bot_token}/${method}`, payload, { timeout, family: 4 });
+  const res = await withTelegramRetry(method, () =>
+    axios.post(`${TG_API}/bot${bot_token}/${method}`, payload, { timeout, family: 4 }));
   return res.data;
 }
 
@@ -392,14 +447,16 @@ async function telegramSendDocument(chatId, buffer, filename, caption) {
   try {
     const { bot_token } = getTelegramSettings();
     if (!bot_token) return null;
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('document', new Blob([buffer]), filename);
-    if (caption) form.append('caption', caption);
-    const res = await axios.post(`${TG_API}/bot${bot_token}/sendDocument`, form, { timeout: 60000 });
+    const res = await withTelegramRetry('sendDocument', () => {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('document', new Blob([buffer]), filename);
+      if (caption) form.append('caption', caption);
+      return axios.post(`${TG_API}/bot${bot_token}/sendDocument`, form, { timeout: 60000, family: 4 });
+    });
     return res.data;
   } catch (e) {
-    console.error('[telegram] sendDocument failed:', e.message);
+    console.error('[telegram] sendDocument failed:', e.code ? `${e.code}: ${e.message}` : (e.message || 'no message'));
     return null;
   }
 }
@@ -408,15 +465,17 @@ async function telegramSendPhoto(chatId, buffer, caption) {
   try {
     const { bot_token } = getTelegramSettings();
     if (!bot_token) return null;
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('photo', new Blob([buffer], { type: 'image/jpeg' }), 'snapshot.jpg');
-    if (caption) form.append('caption', caption);
-    form.append('parse_mode', 'HTML');
-    const res = await axios.post(`${TG_API}/bot${bot_token}/sendPhoto`, form, { timeout: 30000 });
+    const res = await withTelegramRetry('sendPhoto', () => {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('photo', new Blob([buffer], { type: 'image/jpeg' }), 'snapshot.jpg');
+      if (caption) form.append('caption', caption);
+      form.append('parse_mode', 'HTML');
+      return axios.post(`${TG_API}/bot${bot_token}/sendPhoto`, form, { timeout: 30000, family: 4 });
+    });
     return res.data;
   } catch (e) {
-    console.error('[telegram] sendPhoto failed:', e.message);
+    console.error('[telegram] sendPhoto failed:', e.code ? `${e.code}: ${e.message}` : (e.message || 'no message'));
     return null;
   }
 }
@@ -760,7 +819,9 @@ function ensureBackupDir() {
 async function runDailyBackup() {
   try {
     saveDB();
-    const buf = fs.readFileSync(DB_PATH);
+    // Backup dari snapshot memori langsung (bukan baca ulang file) → selalu
+    // konsisten & tidak membebani disk.
+    const buf = Buffer.from(db.export());
     const gz = zlib.gzipSync(buf, { level: 9 });
     const now = new Date();
     const ymd = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -1283,8 +1344,9 @@ async function monitorHost(host) {
     status = 'DOWN';
   }
 
+  // Penulisan disk ditunda (coalesced) — log monitoring sangat bervolume tinggi.
   dbRun('INSERT INTO monitoring_logs (host_id, status, latency, status_code) VALUES (?, ?, ?, ?)',
-    [host.id, status, latency, statusCode]);
+    [host.id, status, latency, statusCode], { defer: true });
 
   const prev = hostStatus[host.id];
   hostStatus[host.id] = { status, latency, statusCode, lastCheck: new Date().toISOString() };
@@ -1834,16 +1896,36 @@ app.delete('/api/history', (req, res) => {
 
 // Cleanup old logs
 function cleanupLogs() {
-  const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString();
+  const cutoff14 = new Date(Date.now() - 14 * 86400000).toISOString();
   const cutoff30 = new Date(Date.now() - 30 * 86400000).toISOString();
-  dbRun("DELETE FROM monitoring_logs WHERE checked_at < ?", [cutoff90]);
+  const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString();
+  // monitoring_logs adalah satu-satunya tabel bervolume besar (~10 ribu baris/hari,
+  // ~90% ukuran file DB) → retensi dipangkas ke 14 hari. Detail lama tetap ada di
+  // arsip file (lihat arsip monitoring_logs di backend/backups).
+  dbRun("DELETE FROM monitoring_logs WHERE checked_at < ?", [cutoff14]);
   dbRun("DELETE FROM bandwidth_logs WHERE logged_at < ?", [cutoff30]);
   dbRun("DELETE FROM system_metrics WHERE logged_at < ?", [cutoff30]);
   dbRun("DELETE FROM speedtest_logs WHERE tested_at < ?", [cutoff30]);
   dbRun("DELETE FROM status_events WHERE occurred_at < ?", [cutoff90]);
+
+  // DELETE hanya menandai halaman sebagai kosong; VACUUM mengembalikan ruang ke OS.
+  // Dijalankan hanya bila cukup banyak halaman kosong (<4 MB) agar tidak boros I/O.
+  try {
+    const freelist = db.exec('PRAGMA freelist_count')[0]?.values[0][0] || 0;
+    if (freelist > 1000) {
+      db.run('VACUUM');
+      saveDB();
+      console.log(`[db] cleanupLogs: VACUUM dijalankan (freelist ${freelist} halaman)`);
+    }
+  } catch (e) {
+    console.error('[db] VACUUM gagal:', e.message);
+  }
 }
 
 setInterval(cleanupLogs, 24 * 3600 * 1000);
+// Jalankan sekali setelah boot supaya DB langsung terpangkas & dipadatkan
+// (mis. setelah restore backup lama).
+setTimeout(cleanupLogs, 60 * 1000);
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://localhost');
@@ -2302,9 +2384,18 @@ app.get('/api/cctv/:id/stream/status', (req, res) => {
   res.json({ streaming: active, url: active ? `/api/hls/${camId}/stream.m3u8` : null });
 });
 
-// Cleanup all streams on exit
-process.on('SIGINT',  () => { Object.keys(activeStreams).forEach(stopHLSStream); process.exit(0); });
-process.on('SIGTERM', () => { Object.keys(activeStreams).forEach(stopHLSStream); process.exit(0); });
+// Cleanup all streams on exit.
+// Penting: flush penulisan DB yang masih tertunda (saveDBDeferred) agar tidak
+// ada baris monitoring yang hilang saat proses berhenti/restart.
+function flushAndExit() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  try { writeDB(); } catch (e) {}
+}
+process.on('SIGINT',  () => { Object.keys(activeStreams).forEach(stopHLSStream); try { flushAndExit(); } catch(e){} process.exit(0); });
+process.on('SIGTERM', () => { Object.keys(activeStreams).forEach(stopHLSStream); try { flushAndExit(); } catch(e){} process.exit(0); });
+// Jaring pengaman terakhir: apa pun penyebab exit (termasuk process.exit di
+// restartServer dan uncaught exception), tulis DB sekali lagi secara sinkron.
+process.on('exit', () => { try { if (db) flushAndExit(); } catch (e) {} });
 
 // ── UNIFI CONTROLLER INTEGRATION ─────────────────────────────────────────────
 

@@ -266,8 +266,12 @@ server {
 
 ## Data Retention
 
-- Monitoring logs & status events: 90 hari
-- Bandwidth & system metrics: 30 hari
+- Monitoring logs (`monitoring_logs`): **14 hari** — tabel ini ±90% ukuran file DB dan bertambah ~10 ribu baris/hari. Detail lama tetap tersimpan di file arsip (`backend/backups/monitoring_logs_archive_*.sql.gz`).
+- Status events (`status_events`): 90 hari
+- Bandwidth, system metrics & speedtest: 30 hari
+
+> Ditulis ulang oleh `cleanupLogs()` (harian). Setelah pemangkasan, `VACUUM` dijalankan otomatis bila cukup banyak halaman kosong agar ukuran file kembali mengecil.
+
 
 ---
 

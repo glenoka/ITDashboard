@@ -49,7 +49,9 @@ Frontend dev server proxies `/api/*` and WebSocket to `localhost:3001` via CRA's
 - **UniFi / Ruijie integrations** communicate over HTTPS with `rejectUnauthorized: false`.
 - **Topology Map & Mikrotik sudah dihapus** — jangan buat ulang endpoint/komponen terkait.
 - **Backup files present** (`backend/server - Copy.js`, `backend/noc.db (2).bak`) — avoid editing them; work with the live files.
-- **Data retention:** monitoring logs & status events kept 90 days, bandwidth & system metrics 30 days (hard-coded in `server.js`).
+- **Data retention:** `monitoring_logs` 14 days (was 90 — table is ~90% of DB size; old detail kept in `backend/backups/monitoring_logs_archive_*.sql.gz`), `status_events` 90 days, bandwidth/system/speedtest 30 days. `cleanupLogs()` runs daily and `VACUUM`s when `freelist_count > 1000`.
+- **DB writes are crash-safe:** `writeDB()` writes `noc.db.tmp` then `renameSync` (atomic). Business data uses `saveDB()` (immediate); high-volume `monitoring_logs` inserts use `dbRun(..., { defer: true })` → `saveDBDeferred()` coalesces disk writes to max 1×/20s. `flushAndExit()` on `SIGINT`/`SIGTERM`/`exit` flushes pending writes.
+- **Telegram calls:** always `family: 4` (host IPv6 ULA is unroutable) and wrapped in `withTelegramRetry()` (3 attempts, backoff `1500*(i+1)`, transient errors only).
 - **Dev runtime:** backend lama mungkin masih jalan di port 3001/3002 → uji backend baru pakai `PORT` lain yang bebas (cek `Get-NetTCPConnection` bila perlu). **Jangan jalankan 2 instance backend di port yang sama** — akan `EADDRINUSE`. Kalau user mengelola backend sendiri, agent tidak boleh spawn instance kedua di port 3002.
 
 ## Knowledge Graph
